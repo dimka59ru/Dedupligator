@@ -53,13 +53,14 @@
             <TextBox Name="PathPreMessageTextBox" IsReadOnly="True"
                      Padding="5"
                      Text="Выберите папку для сканирования..."
-                     IsVisible="{Binding FileFolder, 
+                     IsVisible="{Binding SelectedFolderPath, 
                       Converter={x:Static ObjectConverters.IsNull}}"/>
             <TextBox Name="PathTextBox" IsReadOnly="True"
                      Padding="5"
-                     Text="{Binding FileFolder.Path}"
-                     IsVisible="{Binding FileFolder, 
+                     Text="{Binding SelectedFolderPath}"
+                     IsVisible="{Binding SelectedFolderPath, 
                       Converter={x:Static ObjectConverters.IsNotNull}}"/>
+            
             <Button Name="BrowseButton" Content="Обзор..."
                     Grid.Column="1" Margin="5 0 0 0" Width="80"
                     Click="BrowseButton_Click"/>
@@ -69,16 +70,21 @@
             <Button Name="ScanButton" Content="Сканировать"
                     Command="{Binding ScanFolderCommand}"/>
 
-            <CheckBox Name="SimilarCheckBox" Content="Искать похожие изображения"
-                      Margin="20 0 0 0" VerticalAlignment="Center"/>
+              <RadioButton GroupName="First Group" Content="Точное совпадение"
+                           IsChecked="True"
+                           Margin="20 0 0 0"/>
+              <RadioButton GroupName="First Group" Content="Похожие"
+                           Margin="20 0 0 0"/>
 
-            <ProgressBar Name="ProgressBar" Width="200" Height="20"
-                         Margin="20 0 0 0" IsVisible="False"
-                         IsIndeterminate="True"/>
+              <ProgressBar Name="ProgressBar" Width="400" Height="20"
+                         Margin="20 0 0 0" IsVisible="{Binding IsProcess}"
+                         ShowProgressText="True"
+                         Value="{Binding Progress}"/>
 
             <TextBlock Name="StatusTextBlock" Margin="10 0 0 0"
                        VerticalAlignment="Center" Foreground="Gray"
-                       Text="Готов к работе"/>
+                       Text="Готов к работе"
+                       IsVisible="{Binding !IsProcess}"/>
           </StackPanel>
           
         </StackPanel>
@@ -100,21 +106,30 @@
 
         <!-- Левая панель - группы -->
         <Border Grid.Column="0" Background="White" CornerRadius="3" Padding="5">
-          <StackPanel>
-            <TextBlock Text="Группы дубликатов" FontWeight="Bold" Margin="0 0 0 5"/>
+          <Grid RowDefinitions="20, *">
+            <TextBlock Text="Группы дубликатов" FontWeight="Bold" Margin="0 0 0 5" Grid.Row="0"/>
 
-            <ListBox Name="GroupsListBox" SelectionMode="Single">
+            <ListBox Name="GroupsListBox" SelectionMode="Single"
+                     ItemsSource="{Binding DuplicateGroups}"
+                     Grid.Row="1">
               <ListBox.ItemTemplate>
                 <DataTemplate>
                   <StackPanel>
-                    <TextBlock Text="GroupName" FontWeight="SemiBold"/>
-                    <TextBlock Text="FileCount" Foreground="Gray" FontSize="11"/>
-                    <TextBlock Text="FileCount" Foreground="Gray" FontSize="11"/>
+                    <TextBlock Text="{Binding GroupName}" FontWeight="SemiBold"/>
+                    <StackPanel Orientation="Horizontal">
+                      <TextBlock Text="Количество файлов: " Foreground="Gray" FontSize="11"/>
+                      <TextBlock Text="{Binding FileCount}" Foreground="Gray" FontSize="11"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                      <TextBlock Text="Сумарный размер: " Foreground="Gray" FontSize="11"/>
+                      <TextBlock Text="{Binding TotalSizeMb, StringFormat={}{0:0.0}}" Foreground="Gray" FontSize="11"/>
+                      <TextBlock Text="MB" Foreground="Gray" FontSize="11"/>
+                    </StackPanel>
                   </StackPanel>
                 </DataTemplate>
               </ListBox.ItemTemplate>
             </ListBox>
-          </StackPanel>
+          </Grid>
         </Border>
 
         <!-- Правая панель - превью -->
@@ -169,8 +184,14 @@
     <!-- Панель статуса (замена StatusBar) -->
     <Border Grid.Row="1" Name="StatusBarBorder">
       <Grid ColumnDefinitions="*,Auto">
-        <TextBlock Name="StatsTextBlock" Text="Файлов найдено: 0 | Групп: 0"
-                   VerticalAlignment="Center"/>
+        <StackPanel Orientation="Horizontal" Grid.Column="0">          
+          <TextBlock Text="Файлов найдено: " VerticalAlignment="Center"/>
+          <TextBlock Text="{Binding TotalFiles}" VerticalAlignment="Center"/>
+          <TextBlock Text=" | " VerticalAlignment="Center"/>
+          <TextBlock Text="Групп: " VerticalAlignment="Center"/>
+          <TextBlock Text="{Binding TotalGroup}" VerticalAlignment="Center"/>
+        </StackPanel>
+        
         <TextBlock Name="VersionTextBlock" Text="{Binding AppVersion}"
                    Grid.Column="1" VerticalAlignment="Center"/>
       </Grid>

@@ -1,4 +1,7 @@
-﻿namespace Dedupligator.Services.DuplicateFinders
+﻿using System.Threading;
+using System.Linq;
+
+namespace Dedupligator.Services.DuplicateFinders
 {
   /// <summary>
   /// Поиск дубликатов файлов.
@@ -14,29 +17,40 @@
     /// Находит дубликаты файлов в указанной директории и её поддиректориях.
     /// </summary>
     /// <param name="directoryPath">Путь к директории для поиска.</param>
+    /// <param name="progressCallback">Колбэк для прогресса.</param>
     /// <returns>Список групп дубликатов.</returns>
-    public List<List<FileInfo>> FindDuplicates(string directoryPath)
+    public List<List<FileInfo>> FindDuplicates(string directoryPath, Action<double>? progressCallback = null)
     {
+      var normalizedPath = PathHelper.NormalizeAndValidateDirectoryPath(directoryPath);
+
       // 1. Получаем все подходящие файлы.
-      var allFiles = GetImageFiles(directoryPath);
+      var allFiles = GetImageFiles(normalizedPath);
 
       // 2. Группируем файлы по ключу (например, по размеру) для первого быстрого отсева.
       var groupedFiles = GetGroupedFiles(allFiles);
 
-      return FindDuplicatesInGroups(groupedFiles);
+      return FindDuplicatesInGroups(groupedFiles, progressCallback);
     }
 
     /// <summary>
     /// Ищет дубликаты в группах.
     /// </summary>
     /// <param name="groupedFiles">Сгруппированные файлы.</param>
+    /// <param name="progressCallback">Колбэк для прогресса.</param>
     /// <returns>Найденные группы дубликатов</returns>
-    private List<List<FileInfo>> FindDuplicatesInGroups(IEnumerable<IGrouping<object, FileInfo>> groupedFiles)
+    private List<List<FileInfo>> FindDuplicatesInGroups(IEnumerable<IGrouping<object, FileInfo>> groupedFiles, Action<double>? progressCallback = null)
     {
       var duplicateGroups = new List<List<FileInfo>>();
+      var filesCount = groupedFiles.Sum(x => x.Count());
 
-      foreach(var group in groupedFiles)
+      var processedFilesCount = 0;
+      foreach (var group in groupedFiles)
+      {
         ProcessGroup(group, duplicateGroups);
+
+        processedFilesCount += group.Count();
+        progressCallback?.Invoke((double)(processedFilesCount) / filesCount * 100);
+      }
 
       return duplicateGroups;
     }
@@ -50,7 +64,7 @@
     {
       var files = group.ToList();
 
-      for(int i = 0; i < files.Count; i++)
+      for (int i = 0; i < files.Count; i++)
         ProcessFile(i, files, duplicateGroups);
     }
 
@@ -62,7 +76,7 @@
     /// <param name="duplicateGroups">Коллекция для результатов.</param>
     private void ProcessFile(int index, List<FileInfo> files, List<List<FileInfo>> duplicateGroups)
     {
-      if(IsFileAlreadyProcessed(files[index], duplicateGroups))
+      if (IsFileAlreadyProcessed(files[index], duplicateGroups))
         return;
 
       var duplicates = FindDuplicatesForFile(index, files, duplicateGroups);
@@ -80,7 +94,7 @@
     {
       var duplicates = new List<FileInfo>();
 
-      for(int j = index + 1; j < files.Count; j++)
+      for (int j = index + 1; j < files.Count; j++)
         CheckFilePair(index, j, files, duplicates, duplicateGroups);
 
       return duplicates;
@@ -96,10 +110,10 @@
     /// <param name="duplicateGroups">Коллекция для проверки обработанных файлов.</param>
     private void CheckFilePair(int indexI, int indexJ, List<FileInfo> files, List<FileInfo> duplicates, List<List<FileInfo>> duplicateGroups)
     {
-      if(IsFileAlreadyProcessed(files[indexJ], duplicateGroups))
+      if (IsFileAlreadyProcessed(files[indexJ], duplicateGroups))
         return;
 
-      if(FilesAreDuplicates(files[indexI], files[indexJ]))
+      if (FilesAreDuplicates(files[indexI], files[indexJ]))
         AddDuplicatePair(files[indexI], files[indexJ], duplicates);
     }
 
@@ -115,7 +129,7 @@
       {
         return _strategy.AreDuplicates(file1, file2);
       }
-      catch(Exception ex)
+      catch (Exception ex)
       {
         LogComparisonError(file1, file2, ex);
         return false;
@@ -130,7 +144,7 @@
     /// <param name="duplicates">Список дубликатов.</param>
     private static void AddDuplicatePair(FileInfo sourceFile, FileInfo duplicateFile, List<FileInfo> duplicates)
     {
-      if(!duplicates.Contains(sourceFile))
+      if (!duplicates.Contains(sourceFile))
         duplicates.Add(sourceFile);
 
       duplicates.Add(duplicateFile);
@@ -143,7 +157,7 @@
     /// <param name="duplicateGroups">Общая коллекция результатов.</param>
     private static void AddDuplicatesToResults(List<FileInfo> duplicates, List<List<FileInfo>> duplicateGroups)
     {
-      if(duplicates.Count > 0)
+      if (duplicates.Count > 0)
         duplicateGroups.Add(duplicates);
     }
 
@@ -178,7 +192,7 @@
     {
       List<IGrouping<object, FileInfo>> groupedFiles = [];
 
-      if(_strategy.RequiresPreGrouping)
+      if (_strategy.RequiresPreGrouping)
       {
         groupedFiles = [.. allFiles
             .GroupBy(_strategy.GroupingKeySelector)
@@ -195,24 +209,49 @@
     private static List<FileInfo> GetImageFiles(string directoryPath)
     {
       var allFiles = new List<FileInfo>();
-      
-      try
+
+      var options = new EnumerationOptions
       {
-        allFiles = [.. Directory.EnumerateFiles(directoryPath, "*.*", SearchOption.AllDirectories)
-              .Where(IsImageFile)
-              .Select(filePath => new FileInfo(filePath))];
-      }
-      catch(UnauthorizedAccessException)
+        RecurseSubdirectories = true,
+        IgnoreInaccessible = true,
+        AttributesToSkip = FileAttributes.System | FileAttributes.Temporary
+      };
+
+      var rootDirs = Directory.GetDirectories(directoryPath);
+      foreach (var dir in rootDirs)
       {
-        Console.WriteLine("Нет доступа к одной из папок. Пропускаем.");
-      }
-      catch(Exception ex)
-      {
-        Console.WriteLine($"Ошибка: {ex.Message}");
-        throw;
+        AddImageFilesFromDirectory(allFiles, dir, options);
       }
 
+      // Также добавляем файлы из самого корня
+      AddImageFilesFromDirectory(allFiles, directoryPath, new EnumerationOptions
+      {
+        RecurseSubdirectories = false,
+        IgnoreInaccessible = true,
+        AttributesToSkip = FileAttributes.System | FileAttributes.Temporary
+      });
+
       return allFiles;
+    }
+
+    private static void AddImageFilesFromDirectory(List<FileInfo> allFiles, string directoryPath, EnumerationOptions options)
+    {
+      try
+      {
+        var files = Directory.EnumerateFiles(directoryPath, "*", options)
+            .Where(IsImageFile)
+            .Select(filePath => new FileInfo(filePath));
+
+        allFiles.AddRange(files);
+      }
+      catch (UnauthorizedAccessException)
+      {
+        // Пропускаем папки без доступа
+      }
+      catch (IOException)
+      {
+        // Пропускаем папки с ошибками ввода-вывода
+      }
     }
 
     /// <summary>
