@@ -1,5 +1,6 @@
-﻿using System;
-using Avalonia;
+﻿using Avalonia;
+using Avalonia.ReactiveUI;
+using System;
 
 namespace Dedupligator.App
 {
@@ -17,6 +18,7 @@ namespace Dedupligator.App
             => AppBuilder.Configure<App>()
                 .UsePlatformDetect()
                 .WithInterFont()
-                .LogToTrace();
-    }
+                .LogToTrace()
+                .UseReactiveUI();
+  }
 }

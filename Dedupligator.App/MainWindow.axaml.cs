@@ -1,12 +1,14 @@
 using Avalonia.Controls;
+using Dedupligator.App.ViewModels;
 
 namespace Dedupligator.App
 {
-    public partial class MainWindow : Window
+  public partial class MainWindow : Window
+  {
+    public MainWindow()
     {
-        public MainWindow()
-        {
-            InitializeComponent();
-        }
+      InitializeComponent();
+      DataContext = new MainWindowViewModel();
     }
+  }
 }
