@@ -8,16 +8,173 @@
         d:DesignHeight="450"
         x:Class="Dedupligator.App.MainWindow"
         x:DataType="vm:MainWindowViewModel"
-        Title="{Binding Description}">
+        Title="Dedupligator - Duplicate Photo Finder"
+        MinHeight="500" MinWidth="700"
+        WindowStartupLocation="CenterScreen">
 
   <Design.DataContext>
     <vm:MainWindowViewModel/>
   </Design.DataContext>
-  
-  <Grid
-    ColumnDefinitions="*, 2*"
-    RowDefinitions="100, *"
-    ShowGridLines="True">
 
-  </Grid>
+  <Window.Styles>
+    <Style Selector="Button">
+      <Setter Property="Margin" Value="5"/>
+      <Setter Property="Padding" Value="8 4"/>
+      <Setter Property="MinWidth" Value="80"/>
+    </Style>
+
+    <Style Selector="ListBoxItem">
+      <Setter Property="Padding" Value="8 4"/>
+      <Setter Property="Margin" Value="2"/>
+    </Style>
+
+    <Style Selector="Border#StatusBarBorder">
+      <Setter Property="Background" Value="#FFE0E0E0"/>
+      <Setter Property="BorderBrush" Value="#FFCCCCCC"/>
+      <Setter Property="BorderThickness" Value="1 0 0 0"/>
+      <Setter Property="Padding" Value="8"/>
+    </Style>
+  </Window.Styles>
+
+  <Grid RowDefinitions="*,Auto">
+    <!-- Основное содержимое -->
+    <Grid Grid.Row="0">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="*"/>
+      </Grid.RowDefinitions>
+      
+      <!-- Панель управления -->
+      <Border Grid.Row="0" Background="#FFF0F0F0" Padding="10" BorderBrush="#FFCCCCCC" BorderThickness="0 0 0 1">
+        <StackPanel>
+          <TextBlock Text="Dedupligator" FontSize="16" FontWeight="Bold" Margin="0 0 0 10"/>
+          
+          <Grid ColumnDefinitions="*,Auto" Margin="0 0 0 10">
+            <TextBox Name="PathPreMessageTextBox" IsReadOnly="True"
+                     Padding="5"
+                     Text="Выберите папку для сканирования..."
+                     IsVisible="{Binding FileFolder, 
+                      Converter={x:Static ObjectConverters.IsNull}}"/>
+            <TextBox Name="PathTextBox" IsReadOnly="True"
+                     Padding="5"
+                     Text="{Binding FileFolder.Path}"
+                     IsVisible="{Binding FileFolder, 
+                      Converter={x:Static ObjectConverters.IsNotNull}}"/>
+            <Button Name="BrowseButton" Content="Обзор..."
+                    Grid.Column="1" Margin="5 0 0 0" Width="80"
+                    Click="BrowseButton_Click"/>
+          </Grid>
+
+          <StackPanel Orientation="Horizontal">
+            <Button Name="ScanButton" Content="Сканировать"
+                    Command="{Binding ScanFolderCommand}"/>
+
+            <CheckBox Name="SimilarCheckBox" Content="Искать похожие изображения"
+                      Margin="20 0 0 0" VerticalAlignment="Center"/>
+
+            <ProgressBar Name="ProgressBar" Width="200" Height="20"
+                         Margin="20 0 0 0" IsVisible="False"
+                         IsIndeterminate="True"/>
+
+            <TextBlock Name="StatusTextBlock" Margin="10 0 0 0"
+                       VerticalAlignment="Center" Foreground="Gray"
+                       Text="Готов к работе"/>
+          </StackPanel>
+          
+        </StackPanel>
+      </Border>
+
+
+
+      <!-- Основная область -->
+      <Grid Grid.Row="1" Margin="5">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="250"/>
+          <ColumnDefinition Width="5"/>
+          <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Разделитель -->
+        <GridSplitter Grid.Column="1" Width="5" Background="#FFCCCCCC"
+                     HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+
+        <!-- Левая панель - группы -->
+        <Border Grid.Column="0" Background="White" CornerRadius="3" Padding="5">
+          <StackPanel>
+            <TextBlock Text="Группы дубликатов" FontWeight="Bold" Margin="0 0 0 5"/>
+
+            <ListBox Name="GroupsListBox" SelectionMode="Single">
+              <ListBox.ItemTemplate>
+                <DataTemplate>
+                  <StackPanel>
+                    <TextBlock Text="GroupName" FontWeight="SemiBold"/>
+                    <TextBlock Text="FileCount" Foreground="Gray" FontSize="11"/>
+                    <TextBlock Text="FileCount" Foreground="Gray" FontSize="11"/>
+                  </StackPanel>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+          </StackPanel>
+        </Border>
+
+        <!-- Правая панель - превью -->
+        <Border Grid.Column="2" Background="White" CornerRadius="3" Padding="10">
+          <Grid RowDefinitions="Auto,*,Auto">
+            <TextBlock Name="PreviewTitleText" Text="Выберите группу для просмотра"
+                       FontWeight="Bold" Margin="0 0 0 10"/>
+
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+              <ItemsControl Name="PreviewItemsControl">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <WrapPanel Orientation="Horizontal"/>
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Border Margin="5" Padding="8" Background="#F0F0F0"
+                            CornerRadius="3" Width="150">
+                      <StackPanel>
+                        <Image 
+                               Height="100" Stretch="Uniform"
+                               ToolTip.Tip="FilePath"/>
+
+                        <TextBlock Text="FileName"
+                                   TextWrapping="Wrap" Margin="0 5 0 2"/>
+                        <TextBlock Text="Resolution"
+                                   FontSize="10" Foreground="Gray"/>
+                        <TextBlock Text="FileSize"
+                                   FontSize="10" Foreground="Gray"/>
+
+                        <CheckBox Name="DeleteCheckBox"
+                                  Content="Удалить" Margin="0 5 0 0"
+                                  IsChecked="False"/>
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+
+            <Button Name="DeleteButton" Grid.Row="2"
+                    Content="Удалить отмеченные файлы"
+                    HorizontalAlignment="Right" Margin="0 10 0 0"
+                     IsEnabled="False"/>
+          </Grid>
+        </Border>
+      </Grid>
+    </Grid>
+
+    <!-- Панель статуса (замена StatusBar) -->
+    <Border Grid.Row="1" Name="StatusBarBorder">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Name="StatsTextBlock" Text="Файлов найдено: 0 | Групп: 0"
+                   VerticalAlignment="Center"/>
+        <TextBlock Name="VersionTextBlock" Text="{Binding AppVersion}"
+                   Grid.Column="1" VerticalAlignment="Center"/>
+      </Grid>
+    </Border>
+    
+    </Grid>
 </Window>

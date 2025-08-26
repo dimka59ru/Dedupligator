@@ -1,15 +1,26 @@
-﻿using ReactiveUI;
-using ReactiveUI.Fody.Helpers;
+﻿using Avalonia.Platform.Storage;
+using ReactiveUI;
+using ReactiveUI.SourceGenerators;
 using System;
 using System.Reflection;
+using System.Threading.Tasks;
 
 namespace Dedupligator.App.ViewModels
 {
-  public class MainWindowViewModel : ViewModelBase
+  public partial class MainWindowViewModel : ViewModelBase
   {
-    public string Description { get; } = $"Dedupligator {AppVersion}";
+    [Reactive]
+    private IStorageFolder? _fileFolder;
+    private readonly IObservable<bool> _canExecuteScanFolder;
 
-    public static string AppVersion { get; } = GetAppVersion();
+    public static string AppVersion { get; } = $"v{GetAppVersion()}";
+    
+
+    [ReactiveCommand(CanExecute = nameof(_canExecuteScanFolder))]
+    private async Task ScanFolder()
+    {
+      // Логика сканирования
+    }
 
     private static string GetAppVersion()
     {
@@ -23,6 +34,14 @@ namespace Dedupligator.App.ViewModels
       {
         return "0.1.0";
       }
+    }
+
+    public MainWindowViewModel()
+    {
+      _canExecuteScanFolder = this.WhenAnyValue(
+          x => x.FileFolder,
+          (IStorageFolder? folder) => folder is not null
+      );
     }
   }
 }
