@@ -111,7 +111,8 @@
 
             <ListBox Name="GroupsListBox" SelectionMode="Single"
                      ItemsSource="{Binding DuplicateGroups}"
-                     Grid.Row="1">
+                     Grid.Row="1"
+                     SelectedItem="{Binding SelectedFileGroup}">
               <ListBox.ItemTemplate>
                 <DataTemplate>
                   <StackPanel>
@@ -121,9 +122,8 @@
                       <TextBlock Text="{Binding FileCount}" Foreground="Gray" FontSize="11"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal">
-                      <TextBlock Text="Сумарный размер: " Foreground="Gray" FontSize="11"/>
-                      <TextBlock Text="{Binding TotalSizeMb, StringFormat={}{0:0.0}}" Foreground="Gray" FontSize="11"/>
-                      <TextBlock Text="MB" Foreground="Gray" FontSize="11"/>
+                      <TextBlock Text="Суммарный размер: " Foreground="Gray" FontSize="11"/>
+                      <TextBlock Text="{Binding TotalSize}" Foreground="Gray" FontSize="11"/>
                     </StackPanel>
                   </StackPanel>
                 </DataTemplate>
@@ -139,7 +139,8 @@
                        FontWeight="Bold" Margin="0 0 0 10"/>
 
             <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-              <ItemsControl Name="PreviewItemsControl">
+              <ItemsControl Name="PreviewItemsControl"
+                            ItemsSource="{Binding FilePreviews}">
                 <ItemsControl.ItemsPanel>
                   <ItemsPanelTemplate>
                     <WrapPanel Orientation="Horizontal"/>
@@ -149,17 +150,17 @@
                 <ItemsControl.ItemTemplate>
                   <DataTemplate>
                     <Border Margin="5" Padding="8" Background="#F0F0F0"
-                            CornerRadius="3" Width="150">
+                            CornerRadius="3" Width="250">
                       <StackPanel>
-                        <Image 
-                               Height="100" Stretch="Uniform"
-                               ToolTip.Tip="FilePath"/>
+                        <Image Source="{Binding ImagePreview}"
+                               Height="200" Stretch="Uniform"
+                               ToolTip.Tip="{Binding FilePath}"/>
 
-                        <TextBlock Text="FileName"
+                        <TextBlock Text="{Binding FileName}"
                                    TextWrapping="Wrap" Margin="0 5 0 2"/>
-                        <TextBlock Text="Resolution"
+                        <TextBlock Text="{Binding Resolution}"
                                    FontSize="10" Foreground="Gray"/>
-                        <TextBlock Text="FileSize"
+                        <TextBlock Text="{Binding FileSize}"
                                    FontSize="10" Foreground="Gray"/>
 
                         <CheckBox Name="DeleteCheckBox"

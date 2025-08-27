@@ -13,7 +13,7 @@ namespace Dedupligator.App.Models
   public record class DuplicateGroup(
     string GroupName,
     int FileCount,
-    double TotalSizeMb,
+    string TotalSize,
     List<FileInfo> Files
     );
 }

@@ -1,4 +1,7 @@
-﻿using Avalonia.Platform.Storage;
+﻿using Avalonia.Controls.Shapes;
+using Avalonia.Media.Imaging;
+using Avalonia.Platform;
+using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Dedupligator.App.Helpers;
@@ -15,6 +18,8 @@ namespace Dedupligator.App.ViewModels
 {
   public partial class MainWindowViewModel : ViewModelBase
   {
+    private const int PreviewImageMaxWidth = 250;
+
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ScanFolderCommand))]
     [NotifyPropertyChangedFor(nameof(SelectedFolderPath))]
@@ -30,6 +35,12 @@ namespace Dedupligator.App.ViewModels
 
     [ObservableProperty]
     private double _progress;
+
+    [ObservableProperty]
+    private DuplicateGroup? _selectedFileGroup;
+
+    [ObservableProperty]
+    private ObservableCollection<ImagePreviewViewModel> _filePreviews = [];
 
     public int TotalFiles => DuplicateGroups.Sum(x => x.FileCount);
     public int TotalGroup => DuplicateGroups.Count;
@@ -61,7 +72,7 @@ namespace Dedupligator.App.ViewModels
         var groupsForUi = duplicateGroups.Select(group => new DuplicateGroup(
             GroupName: group[0].Name,
             FileCount: group.Count,
-            TotalSizeMb: group.Sum(x => x.Length) / 1e6,
+            TotalSize: group.Sum(x => x.Length).ToFileSizeString(),
             Files: group
         )).ToList();
 
@@ -70,6 +81,27 @@ namespace Dedupligator.App.ViewModels
       finally
       {
         IsProcess = false;
+      }
+    }
+
+    async partial void OnSelectedFileGroupChanged(DuplicateGroup? oldValue, DuplicateGroup? newValue)
+    {
+      if (newValue == null)
+        return;
+
+      var previews = newValue.Files.Select(file => new ImagePreviewViewModel
+      {
+        FileName = file.Name,
+        FilePath = file.FullName,
+        FileSize = file.Length.ToFileSizeString(),
+      }).ToList();
+
+      FilePreviews = new ObservableCollection<ImagePreviewViewModel>(previews);
+
+      // Добавить таймер. И загружать толкьо через секунду. Защитит от быстрого перелистывания групп.
+      foreach (var preview in previews)
+      {
+        await preview.LoadImageAsync(PreviewImageMaxWidth);
       }
     }
 
