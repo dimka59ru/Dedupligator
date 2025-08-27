@@ -17,7 +17,7 @@ namespace Dedupligator.App
 
       var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions());
       if (folders.Count > 0)
-        _mainViewModel.FileFolder = folders[0];
+        _mainViewModel.SelectedFolder = folders[0];
     }
 
     public MainWindow()

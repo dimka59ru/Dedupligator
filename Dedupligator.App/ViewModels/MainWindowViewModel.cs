@@ -1,6 +1,7 @@
 ﻿using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Dedupligator.App.Helpers;
 using Dedupligator.App.Models;
 using Dedupligator.Services.DuplicateFinders;
 using Dedupligator.Services.Hashes;
@@ -17,7 +18,7 @@ namespace Dedupligator.App.ViewModels
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ScanFolderCommand))]
     [NotifyPropertyChangedFor(nameof(SelectedFolderPath))]
-    private IStorageFolder? _fileFolder;
+    private IStorageFolder? _selectedFolder;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(TotalFiles))]
@@ -32,10 +33,11 @@ namespace Dedupligator.App.ViewModels
 
     public int TotalFiles => DuplicateGroups.Sum(x => x.FileCount);
     public int TotalGroup => DuplicateGroups.Count;
-    public string? SelectedFolderPath => FileFolder != null ? Helpers.StorageExtensions.GetSafeLocalPath(FileFolder) : null;
+    public string? SelectedFolderPath => SelectedFolder?.GetSafeLocalPath();
     public static string AppVersion { get; } = $"v{GetAppVersion()}";
 
-    private bool CanExecuteScanFolder => FileFolder is not null && Helpers.StorageExtensions.GetSafeLocalPath(FileFolder) is not null;
+
+    private bool CanExecuteScanFolder => SelectedFolderPath is not null;
 
     [RelayCommand(CanExecute = nameof(CanExecuteScanFolder))]
     private async Task ScanFolder()
@@ -64,17 +66,6 @@ namespace Dedupligator.App.ViewModels
         )).ToList();
 
         DuplicateGroups = new ObservableCollection<DuplicateGroup>(groupsForUi);
-        foreach (var group in duplicateGroups)
-        {
-          var duplicateGroup = new DuplicateGroup(
-            GroupName: group[0].Name,
-            FileCount: group.Count,
-            TotalSizeMb: group.Sum(x => x.Length) / 1e6,
-            Files: group
-          );
-
-          DuplicateGroups.Add(duplicateGroup);
-        }
       }
       finally
       {

@@ -24,7 +24,7 @@ namespace Dedupligator.App.Helpers
         }
 
         // Третий способ: для корней дисков
-        if (folder.Name is string name && name.Length == 2 && name.EndsWith(":"))
+        if (folder.Name is string name && name.Length == 2 && name.EndsWith(':'))
         {
           return name + "\\";
         }

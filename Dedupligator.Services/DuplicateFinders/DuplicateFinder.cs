@@ -1,7 +1,4 @@
-﻿using System.Threading;
-using System.Linq;
-
-namespace Dedupligator.Services.DuplicateFinders
+﻿namespace Dedupligator.Services.DuplicateFinders
 {
   /// <summary>
   /// Поиск дубликатов файлов.
@@ -210,20 +207,18 @@ namespace Dedupligator.Services.DuplicateFinders
     {
       var allFiles = new List<FileInfo>();
 
-      var options = new EnumerationOptions
-      {
-        RecurseSubdirectories = true,
-        IgnoreInaccessible = true,
-        AttributesToSkip = FileAttributes.System | FileAttributes.Temporary
-      };
-
       var rootDirs = Directory.GetDirectories(directoryPath);
       foreach (var dir in rootDirs)
       {
-        AddImageFilesFromDirectory(allFiles, dir, options);
+        AddImageFilesFromDirectory(allFiles, dir, new EnumerationOptions
+        {
+          RecurseSubdirectories = true,
+          IgnoreInaccessible = true,
+          AttributesToSkip = FileAttributes.System | FileAttributes.Temporary
+        });
       }
 
-      // Также добавляем файлы из самого корня
+      // Также добавляем файлы из исходной папки.
       AddImageFilesFromDirectory(allFiles, directoryPath, new EnumerationOptions
       {
         RecurseSubdirectories = false,
