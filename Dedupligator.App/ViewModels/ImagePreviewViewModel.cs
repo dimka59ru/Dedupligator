@@ -14,6 +14,9 @@ namespace Dedupligator.App.ViewModels
     [ObservableProperty]
     private string? _resolution;
 
+    [ObservableProperty]
+    private bool _markedForDeletion;
+
     public string FileName { get; }
     public string FilePath { get; }
     public string FileSize { get; }

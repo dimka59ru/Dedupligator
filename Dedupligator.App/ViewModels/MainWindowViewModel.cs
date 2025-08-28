@@ -1,7 +1,4 @@
-﻿using Avalonia.Controls.Shapes;
-using Avalonia.Media.Imaging;
-using Avalonia.Platform;
-using Avalonia.Platform.Storage;
+﻿using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Dedupligator.App.Helpers;
@@ -10,6 +7,8 @@ using Dedupligator.Services;
 using Dedupligator.Services.DuplicateFinders;
 using Dedupligator.Services.Hashes;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -21,7 +20,7 @@ namespace Dedupligator.App.ViewModels
   {
     private const int PreviewImageMaxWidth = 250;
 
-    private AsyncDebouncer _debouncer = new(500);
+    private readonly AsyncDebouncer _debouncer = new(500);
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ScanFolderCommand))]
@@ -40,6 +39,7 @@ namespace Dedupligator.App.ViewModels
     private double _progress;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(RemoveFilesCommand))]
     private DuplicateGroup? _selectedFileGroup;
 
     [ObservableProperty]
@@ -87,6 +87,19 @@ namespace Dedupligator.App.ViewModels
       }
     }
 
+
+    private bool CanExecuteRemoveFiles => FilePreviews.Any(x => x.MarkedForDeletion);
+
+    [RelayCommand(CanExecute = nameof(CanExecuteRemoveFiles))]
+    private void RemoveFiles()
+    {
+      var itemsToRemove = FilePreviews.Where(x => x.MarkedForDeletion).ToList();
+      foreach (var item in itemsToRemove)
+      {
+        FilePreviews.Remove(item);
+      }
+    }
+
     async partial void OnSelectedFileGroupChanged(DuplicateGroup? oldValue, DuplicateGroup? newValue)
     {
       if (newValue == null)
@@ -108,6 +121,56 @@ namespace Dedupligator.App.ViewModels
           await preview.LoadImageAsync(PreviewImageMaxWidth);
         }
       });
+    }
+
+    partial void OnFilePreviewsChanged(ObservableCollection<ImagePreviewViewModel>? oldValue, ObservableCollection<ImagePreviewViewModel> newValue)
+    {
+      if (oldValue != null)
+      {
+        oldValue.CollectionChanged -= FilePreviews_CollectionChanged;
+        foreach (var item in oldValue)
+        {
+          item.PropertyChanged -= ImagePreview_PropertyChanged;
+        }
+      }
+
+      if (newValue != null)
+      {
+        newValue.CollectionChanged += FilePreviews_CollectionChanged;
+        foreach (var item in newValue)
+        {
+          item.PropertyChanged += ImagePreview_PropertyChanged;
+        }
+      }
+    }
+
+    private void FilePreviews_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+      if (e.NewItems != null)
+      {
+        foreach (ImagePreviewViewModel item in e.NewItems)
+        {
+          item.PropertyChanged += ImagePreview_PropertyChanged;
+        }
+      }
+
+      if (e.OldItems != null)
+      {
+        foreach (ImagePreviewViewModel item in e.OldItems)
+        {
+          item.PropertyChanged -= ImagePreview_PropertyChanged;
+        }
+      }
+
+      RemoveFilesCommand.NotifyCanExecuteChanged();
+    }
+
+    private void ImagePreview_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+      if (e.PropertyName == nameof(ImagePreviewViewModel.MarkedForDeletion))
+      {
+        RemoveFilesCommand.NotifyCanExecuteChanged();
+      }
     }
 
     private static string GetAppVersion()
