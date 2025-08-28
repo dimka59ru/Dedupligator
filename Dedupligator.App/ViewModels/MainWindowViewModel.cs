@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Dedupligator.App.Helpers;
 using Dedupligator.App.Models;
+using Dedupligator.Services;
 using Dedupligator.Services.DuplicateFinders;
 using Dedupligator.Services.Hashes;
 using System.Collections.ObjectModel;
@@ -19,6 +20,8 @@ namespace Dedupligator.App.ViewModels
   public partial class MainWindowViewModel : ViewModelBase
   {
     private const int PreviewImageMaxWidth = 250;
+
+    private AsyncDebouncer _debouncer = new(500);
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ScanFolderCommand))]
@@ -98,11 +101,13 @@ namespace Dedupligator.App.ViewModels
 
       FilePreviews = new ObservableCollection<ImagePreviewViewModel>(previews);
 
-      // Добавить таймер. И загружать толкьо через секунду. Защитит от быстрого перелистывания групп.
-      foreach (var preview in previews)
+      await _debouncer.DebounceAsync(async () =>
       {
-        await preview.LoadImageAsync(PreviewImageMaxWidth);
-      }
+        foreach (var preview in previews)
+        {
+          await preview.LoadImageAsync(PreviewImageMaxWidth);
+        }
+      });
     }
 
     private static string GetAppVersion()
