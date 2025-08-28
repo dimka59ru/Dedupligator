@@ -93,11 +93,11 @@ namespace Dedupligator.App.ViewModels
         return;
 
       var previews = newValue.Files.Select(file => new ImagePreviewViewModel
-      {
-        FileName = file.Name,
-        FilePath = file.FullName,
-        FileSize = file.Length.ToFileSizeString(),
-      }).ToList();
+      (
+        file.Name,
+        file.FullName,
+        file.Length.ToFileSizeString()
+      )).ToList();
 
       FilePreviews = new ObservableCollection<ImagePreviewViewModel>(previews);
 

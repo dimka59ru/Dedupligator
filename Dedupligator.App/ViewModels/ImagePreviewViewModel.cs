@@ -14,9 +14,9 @@ namespace Dedupligator.App.ViewModels
     [ObservableProperty]
     private string? _resolution;
 
-    public string? FileName { get; set; }
-    public string? FilePath { get; set; }
-    public string? FileSize { get; set; }
+    public string FileName { get; }
+    public string FilePath { get; }
+    public string FileSize { get; }
 
     public async Task LoadImageAsync(int maxWidth = 150)
     {
@@ -38,10 +38,17 @@ namespace Dedupligator.App.ViewModels
       }
     }
 
-    public ImagePreviewViewModel()
+    public ImagePreviewViewModel(string fileName, string filePath, string fileSize)
     {
+      System.ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
+      System.ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+      System.ArgumentException.ThrowIfNullOrWhiteSpace(fileSize);
+
       ImagePreview = ImageHelper.CreatePlaceholderWithGraphics(100, 100, Colors.LightGray);
       Resolution = "Loading...";
+      FileName = fileName;
+      FilePath = filePath;
+      FileSize = fileSize;
     }
   }
 }
