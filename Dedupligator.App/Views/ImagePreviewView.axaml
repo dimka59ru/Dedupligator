@@ -1,0 +1,30 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:Dedupligator.App.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             x:Class="Dedupligator.App.Views.ImagePreviewView"
+             x:DataType="vm:ImagePreviewViewModel">
+
+  <Border Margin="5" Padding="8" Background="#F0F0F0"
+                            CornerRadius="3" Width="250">
+    <StackPanel>
+      <Image Source="{Binding ImagePreview}"
+           Height="200" Stretch="Uniform"
+           ToolTip.Tip="{Binding FilePath}"/>
+
+      <TextBlock Text="{Binding FileName}"
+             TextWrapping="Wrap" Margin="0 5 0 2"/>
+      <TextBlock Text="{Binding Resolution}"
+             FontSize="10" Foreground="Gray"/>
+      <TextBlock Text="{Binding FileSize}"
+             FontSize="10" Foreground="Gray"/>
+
+      <CheckBox Name="DeleteCheckBox"
+            Content="Удалить" Margin="0 5 0 0"
+            IsChecked="{Binding MarkedForDeletion}"/>
+    </StackPanel>
+
+  </Border>
+</UserControl>
