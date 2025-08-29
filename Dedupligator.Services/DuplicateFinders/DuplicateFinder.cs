@@ -106,11 +106,7 @@ namespace Dedupligator.Services.DuplicateFinders
         Console.WriteLine("Операция поиска дубликатов была отменена");
         throw;
       }
-      finally
-      {
-        semaphore?.Release(maxParallelism); // Подстраховка
-      }
-
+      
       return [.. duplicateGroups];
     }
 
