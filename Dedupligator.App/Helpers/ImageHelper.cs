@@ -16,16 +16,21 @@ namespace Dedupligator.App.Helpers
 
       if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
       {
-        result.Bitmap = CreatePlaceholderWithGraphics(100, 100, Colors.LightGray);
+        result.Bitmap = CreateLightGrayPlaceholderWithGraphics();
         return result;
       }
 
       try
       {
-        // 1. Получаем размеры БЕЗ загрузки всего изображения (быстро и экономично)
-        var dimensions = await GetImageDimensionsAsync(filePath);
-        result.Width = dimensions.Width;
-        result.Height = dimensions.Height;
+        var info = await GetImageInfoAsync(filePath);
+        if (!info.IsSuccess)
+        {
+          result.Bitmap = CreateLightGrayPlaceholderWithGraphics();
+          return result;
+        }
+
+        result.Width = info.Width;
+        result.Height = info.Height;
         result.IsSuccess = true;
 
         // 2. Загружаем только превью для отображения
@@ -33,33 +38,26 @@ namespace Dedupligator.App.Helpers
 
         result.Bitmap = await Task.Run(() =>
                 Bitmap.DecodeToWidth(fileStream, maxWidth)
-                ?? CreatePlaceholderWithGraphics(100, 100, Colors.LightGray)
+                ?? CreateLightGrayPlaceholderWithGraphics()
             );
       }
       catch
       {
-        result.Bitmap = CreatePlaceholderWithGraphics(100, 100, Colors.LightGray);
+        result.Bitmap = CreateLightGrayPlaceholderWithGraphics();
       }
 
       return result;
     }
 
-    public static async Task<(int Width, int Height)> GetImageDimensionsAsync(string filePath)
+    public static async Task<(double Width, double Height)> GetImageDimensionsAsync(string filePath)
     {
-      if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
-        return (0, 0);
+      var result = await GetImageInfoAsync(filePath);
+      return (result.Width, result.Height);
+    }
 
-      try
-      {
-        // Используем IdentifyAsync для быстрого получения метаданных
-        using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read);
-        var imageInfo = await SixLabors.ImageSharp.Image.IdentifyAsync(fileStream);
-        return imageInfo != null ? (imageInfo.Width, imageInfo.Height) : (0, 0);
-      }
-      catch
-      {
-        return (0, 0);
-      }
+    public static Bitmap CreateLightGrayPlaceholderWithGraphics()
+    {
+      return CreatePlaceholderWithGraphics(100, 100, Colors.LightGray);
     }
 
     public static Bitmap CreatePlaceholderWithGraphics(int width, int height, Color color)
@@ -89,5 +87,29 @@ namespace Dedupligator.App.Helpers
 
       return renderTarget;
     }
-  }
+
+    public static async Task<ImageInfoResult> GetImageInfoAsync(string filePath)
+    {
+      if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
+        return ImageInfoResult.Fail;
+
+      try
+      {
+        await using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+
+        var imageInfo = await SixLabors.ImageSharp.Image.IdentifyAsync(stream);
+        if (imageInfo is null)
+          return ImageInfoResult.Fail;
+
+        return new ImageInfoResult(true, imageInfo.Width, imageInfo.Height);
+      }
+      catch (Exception ex) when (
+          ex is SixLabors.ImageSharp.InvalidImageContentException ||
+          ex is NotSupportedException ||
+          ex is IOException)
+      {
+        return ImageInfoResult.Fail;
+      }
+    }
+  }  
 }
