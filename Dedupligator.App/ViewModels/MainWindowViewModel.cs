@@ -1,13 +1,13 @@
 ﻿using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Dedupligator.App.Collections;
 using Dedupligator.App.Helpers;
 using Dedupligator.App.Models;
 using Dedupligator.Services;
 using Dedupligator.Services.DuplicateFinders;
 using Dedupligator.Services.Hashes;
 using System;
-using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.IO;
@@ -29,9 +29,7 @@ namespace Dedupligator.App.ViewModels
     private IStorageFolder? _selectedFolder;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(TotalFiles))]
-    [NotifyPropertyChangedFor(nameof(TotalGroup))]
-    private ObservableCollection<DuplicateGroup> _duplicateGroups = [];
+    private ObservableRangeCollection<DuplicateGroup> _duplicateGroups = [];
 
     [ObservableProperty]
     private bool _isProcess;
@@ -44,7 +42,7 @@ namespace Dedupligator.App.ViewModels
     private DuplicateGroup? _selectedFileGroup;
 
     [ObservableProperty]
-    private ObservableCollection<ImagePreviewViewModel> _filePreviews = [];
+    private ObservableRangeCollection<ImagePreviewViewModel> _filePreviews = [];
 
     public int TotalFiles => DuplicateGroups.Sum(x => x.FileCount);
     public int TotalGroup => DuplicateGroups.Count;
@@ -65,7 +63,8 @@ namespace Dedupligator.App.ViewModels
       var finder = new DuplicateFinder(strategy);
 
       IsProcess = true;
-      DuplicateGroups = [];
+      DuplicateGroups.Clear();
+      FilePreviews.Clear();
       Progress = 0;
 
       try
@@ -84,7 +83,7 @@ namespace Dedupligator.App.ViewModels
             Files: group
         )).ToList();
 
-        DuplicateGroups = new ObservableCollection<DuplicateGroup>(groupsForUi);
+        DuplicateGroups.ReplaceWith(groupsForUi);
       }
       finally
       {
@@ -117,55 +116,61 @@ namespace Dedupligator.App.ViewModels
         file.Length.ToFileSizeString()
       )).ToList();
 
-      FilePreviews = new ObservableCollection<ImagePreviewViewModel>(previews);
+      FilePreviews.ReplaceWith(previews);
 
       await _debouncer.DebounceAsync(async () =>
       {
-        foreach (var preview in previews)
+        foreach (var preview in FilePreviews)
         {
           await preview.LoadImageAsync(PreviewImageMaxWidth);
         }
       });
     }
 
-    partial void OnFilePreviewsChanged(ObservableCollection<ImagePreviewViewModel>? oldValue, ObservableCollection<ImagePreviewViewModel> newValue)
-    {
-      if (oldValue != null)
-      {
-        oldValue.CollectionChanged -= FilePreviews_CollectionChanged;
-        foreach (var item in oldValue)
-        {
-          item.PropertyChanged -= ImagePreview_PropertyChanged;
-        }
-      }
-
-      if (newValue != null)
-      {
-        newValue.CollectionChanged += FilePreviews_CollectionChanged;
-        foreach (var item in newValue)
-        {
-          item.PropertyChanged += ImagePreview_PropertyChanged;
-        }
-      }
-    }
-
     private void FilePreviews_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-      if (e.NewItems != null)
+      switch (e.Action)
       {
-        foreach (ImagePreviewViewModel item in e.NewItems)
-        {
-          item.PropertyChanged += ImagePreview_PropertyChanged;
-        }
+        case NotifyCollectionChangedAction.Add:
+        case NotifyCollectionChangedAction.Replace:
+        case NotifyCollectionChangedAction.Move:
+          if (e.NewItems != null)
+          {
+            foreach (ImagePreviewViewModel item in e.NewItems)
+            {
+              item.PropertyChanged += ImagePreview_PropertyChanged;
+            }
+          }
+          break;
+
+        case NotifyCollectionChangedAction.Remove:
+          if (e.OldItems != null)
+          {
+            foreach (ImagePreviewViewModel item in e.OldItems)
+            {
+              item.PropertyChanged -= ImagePreview_PropertyChanged;
+            }
+          }
+          break;
+
+        case NotifyCollectionChangedAction.Reset:
+          // Коллекция полностью изменилась — нужно обработать ВСЕ элементы
+          if (FilePreviews.Count > 0)
+          {
+            // Отписываем старые (на всякий случай)
+            foreach (var item in FilePreviews)
+            {
+              item.PropertyChanged -= ImagePreview_PropertyChanged;
+            }
+            // Подписываем снова
+            foreach (var item in FilePreviews)
+            {
+              item.PropertyChanged += ImagePreview_PropertyChanged;
+            }
+          }
+          break;
       }
 
-      if (e.OldItems != null)
-      {
-        foreach (ImagePreviewViewModel item in e.OldItems)
-        {
-          item.PropertyChanged -= ImagePreview_PropertyChanged;
-        }
-      }
 
       RemoveFilesCommand.NotifyCanExecuteChanged();
     }
@@ -176,6 +181,12 @@ namespace Dedupligator.App.ViewModels
       {
         RemoveFilesCommand.NotifyCanExecuteChanged();
       }
+    }
+
+    private void DuplicateGroups_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+      OnPropertyChanged(nameof(TotalFiles));
+      OnPropertyChanged(nameof(TotalGroup));
     }
 
     private static string GetAppVersion()
@@ -190,6 +201,12 @@ namespace Dedupligator.App.ViewModels
       {
         return "0.1.0";
       }
+    }
+
+    public MainWindowViewModel()
+    {
+      DuplicateGroups.CollectionChanged += DuplicateGroups_CollectionChanged;
+      FilePreviews.CollectionChanged+= FilePreviews_CollectionChanged;
     }
   }
 }
