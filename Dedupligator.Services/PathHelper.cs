@@ -8,33 +8,20 @@
         throw new ArgumentException("Путь к папке не может быть пустым", nameof(folderPath));
 
       // Нормализуем путь
-      folderPath = Path.GetFullPath(folderPath);
-
-      // Корректируем путь для корней дисков
-      if (folderPath.Length == 2 && folderPath[1] == ':')
+      string fullPath;
+      try
       {
-        // Добавляем недостающий backslash (C: -> C:\)
-        folderPath += Path.DirectorySeparatorChar;
+        fullPath = Path.GetFullPath(folderPath);
       }
-      else if (folderPath.Length == 3 && folderPath[1] == ':' && folderPath[2] == '\\')
+      catch (Exception ex) when (
+          ex is ArgumentException ||
+          ex is PathTooLongException ||
+          ex is NotSupportedException)
       {
-        // Это уже корректный путь к диску (C:\), ничего не меняем
-      }
-      else
-      {
-        // Для обычных путей убеждаемся, что заканчивается на directory separator
-        if (!folderPath.EndsWith(Path.DirectorySeparatorChar.ToString()) &&
-            !folderPath.EndsWith(Path.AltDirectorySeparatorChar.ToString()))
-        {
-          folderPath += Path.DirectorySeparatorChar;
-        }
+        throw new ArgumentException($"Некорректный путь: {folderPath}", nameof(folderPath), ex);
       }
 
-      // Проверяем существование директории
-      if (!Directory.Exists(folderPath))
-        throw new DirectoryNotFoundException($"Директория не найдена: {folderPath}");
-
-      return folderPath;
+      return fullPath;
     }
   }
 }
