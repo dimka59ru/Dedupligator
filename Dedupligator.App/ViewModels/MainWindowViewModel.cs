@@ -6,6 +6,7 @@ using Dedupligator.App.Models;
 using Dedupligator.Services;
 using Dedupligator.Services.DuplicateFinders;
 using Dedupligator.Services.Hashes;
+using System;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
@@ -69,8 +70,12 @@ namespace Dedupligator.App.ViewModels
 
       try
       {
-        var duplicateGroups = await Task.Run(() => 
-          finder.FindDuplicates(SelectedFolderPath, p => Progress = p));
+        var progress = new Progress<double>(p =>
+        {
+          Progress = p;
+        });
+
+        var duplicateGroups = await finder.FindDuplicatesAsync(SelectedFolderPath, progress);
 
         var groupsForUi = duplicateGroups.Select(group => new DuplicateGroup(
             GroupName: group[0].Name,

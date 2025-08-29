@@ -1,4 +1,6 @@
-﻿namespace Dedupligator.Services.DuplicateFinders
+﻿using System.Collections.Concurrent;
+
+namespace Dedupligator.Services.DuplicateFinders
 {
   /// <summary>
   /// Поиск дубликатов файлов.
@@ -16,7 +18,7 @@
     /// <param name="directoryPath">Путь к директории для поиска.</param>
     /// <param name="progressCallback">Колбэк для прогресса.</param>
     /// <returns>Список групп дубликатов.</returns>
-    public List<List<FileInfo>> FindDuplicates(string directoryPath, Action<double>? progressCallback = null)
+    public async Task<List<List<FileInfo>>> FindDuplicatesAsync(string directoryPath, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
     {
       var normalizedPath = PathHelper.NormalizeAndValidateDirectoryPath(directoryPath);
 
@@ -26,93 +28,122 @@
       // 2. Группируем файлы по ключу (например, по размеру) для первого быстрого отсева.
       var groupedFiles = GetGroupedFiles(allFiles);
 
-      return FindDuplicatesInGroups(groupedFiles, progressCallback);
+      var maxParallelism = Environment.ProcessorCount;
+      var duplicateGroups = await FindDuplicatesInGroupsWithThrottling(groupedFiles, progress, maxParallelism, cancellationToken);
+
+      return duplicateGroups;
     }
 
-    /// <summary>
-    /// Ищет дубликаты в группах.
-    /// </summary>
-    /// <param name="groupedFiles">Сгруппированные файлы.</param>
-    /// <param name="progressCallback">Колбэк для прогресса.</param>
-    /// <returns>Найденные группы дубликатов</returns>
-    private List<List<FileInfo>> FindDuplicatesInGroups(IEnumerable<IGrouping<object, FileInfo>> groupedFiles, Action<double>? progressCallback = null)
+    private async Task<List<List<FileInfo>>> FindDuplicatesInGroupsWithThrottling(
+        IEnumerable<IGrouping<object, FileInfo>> groupedFiles,
+        IProgress<double>? progress = null,
+        int maxParallelism = 4,
+        CancellationToken cancellationToken = default)
+    {
+      var duplicateGroups = new ConcurrentBag<List<FileInfo>>();
+      var totalFiles = groupedFiles.Sum(x => x.Count());
+      long processedFilesCount = 0;
+
+      if (totalFiles == 0)
+      {
+        progress?.Report(100.0);
+        return [.. duplicateGroups];
+      }
+
+      var semaphore = new SemaphoreSlim(maxParallelism);
+      var tasks = new List<Task>();
+
+      try
+      {
+        foreach (var group in groupedFiles)
+        {
+          cancellationToken.ThrowIfCancellationRequested();
+          await semaphore.WaitAsync(cancellationToken);
+
+          var task = Task.Run(() =>
+          {
+            try
+            {
+              var groupFiles = group.ToList();
+              var groupDuplicates = FindDuplicateGroupsInFileGroup(groupFiles, cancellationToken);
+
+              foreach (var duplicates in groupDuplicates)
+                duplicateGroups.Add(duplicates);
+
+              // Атомарно увеличиваем счётчик обработанных файлов
+              var groupCount = groupFiles.Count;
+              Interlocked.Add(ref processedFilesCount, groupCount);
+
+              // Отчёт о прогрессе — только при значимом изменении
+              var currentProgress = (double)Interlocked.Read(ref processedFilesCount) / totalFiles * 100.0;
+
+              // Чтобы не спамить, можно добавить порог (например, обновлять каждые ~1%)
+              // Но для простоты: просто отчитываемся
+              progress?.Report(currentProgress);
+            }
+            finally
+            {
+              semaphore.Release();
+            }
+          }, cancellationToken);
+
+          tasks.Add(task);
+        }
+
+        await Task.WhenAll(tasks);
+      }
+      catch (OperationCanceledException)
+      {
+        Console.WriteLine("Операция поиска дубликатов была отменена");
+        throw;
+      }
+      finally
+      {
+        semaphore?.Release(maxParallelism); // Подстраховка
+      }
+
+      return [.. duplicateGroups];
+    }
+
+    private List<List<FileInfo>> FindDuplicateGroupsInFileGroup(List<FileInfo> files, CancellationToken cancellationToken)
     {
       var duplicateGroups = new List<List<FileInfo>>();
-      var filesCount = groupedFiles.Sum(x => x.Count());
+      var processedFiles = new HashSet<string>();
 
-      var processedFilesCount = 0;
-      foreach (var group in groupedFiles)
+      for (int i = 0; i < files.Count; i++)
       {
-        ProcessGroup(group, duplicateGroups);
+        var currentFile = files[i];
 
-        processedFilesCount += group.Count();
-        progressCallback?.Invoke((double)(processedFilesCount) / filesCount * 100);
+        if (processedFiles.Contains(currentFile.FullName))
+          continue;
+
+        var currentGroup = new List<FileInfo>() { currentFile };
+
+        for (int j = i + 1; j < files.Count; j++)
+        {
+          cancellationToken.ThrowIfCancellationRequested();
+
+          var otherFile = files[j];
+          if (processedFiles.Contains(otherFile.FullName))
+            continue;
+
+          if (FilesAreDuplicates(currentFile, otherFile))
+          {
+            currentGroup.Add(otherFile);
+            processedFiles.Add(otherFile.FullName);
+          }
+        }
+
+        if (currentGroup.Count > 1)
+        {
+          duplicateGroups.Add(currentGroup);
+          processedFiles.Add(currentFile.FullName);
+        }
       }
 
       return duplicateGroups;
     }
 
-    /// <summary>
-    /// Обрабатывает одну группу файлов для поиска дубликатов.
-    /// </summary>
-    /// <param name="group">Группа файлов.</param>
-    /// <param name="duplicateGroups">Коллекция для результатов.</param>
-    private void ProcessGroup(IGrouping<object, FileInfo> group, List<List<FileInfo>> duplicateGroups)
-    {
-      var files = group.ToList();
-
-      for (int i = 0; i < files.Count; i++)
-        ProcessFile(i, files, duplicateGroups);
-    }
-
-    /// <summary>
-    /// Обрабатывает один файл в группе для поиска его дубликатов.
-    /// </summary>
-    /// <param name="index">Индекс файла в группе.</param>
-    /// <param name="files">Список файлов группы.</param>
-    /// <param name="duplicateGroups">Коллекция для результатов.</param>
-    private void ProcessFile(int index, List<FileInfo> files, List<List<FileInfo>> duplicateGroups)
-    {
-      if (IsFileAlreadyProcessed(files[index], duplicateGroups))
-        return;
-
-      var duplicates = FindDuplicatesForFile(index, files, duplicateGroups);
-      AddDuplicatesToResults(duplicates, duplicateGroups);
-    }
-
-    /// <summary>
-    /// Находит все дубликаты для указанного файла в группе.
-    /// </summary>
-    /// <param name="index">Индекс исходного файла.</param>
-    /// <param name="files">Список файлов группы.</param>
-    /// <param name="duplicateGroups">Коллекция для проверки обработанных файлов.</param>
-    /// <returns>Список найденных дубликатов.</returns>
-    private List<FileInfo> FindDuplicatesForFile(int index, List<FileInfo> files, List<List<FileInfo>> duplicateGroups)
-    {
-      var duplicates = new List<FileInfo>();
-
-      for (int j = index + 1; j < files.Count; j++)
-        CheckFilePair(index, j, files, duplicates, duplicateGroups);
-
-      return duplicates;
-    }
-
-    /// <summary>
-    /// Проверяет пару файлов на дубликаты и добавляет в результат при совпадении.
-    /// </summary>
-    /// <param name="indexI">Индекс первого файла.</param>
-    /// <param name="indexJ">Индекс второго файла.</param>
-    /// <param name="files">Список файлов группы.</param>
-    /// <param name="duplicates">Текущий список дубликатов.</param>
-    /// <param name="duplicateGroups">Коллекция для проверки обработанных файлов.</param>
-    private void CheckFilePair(int indexI, int indexJ, List<FileInfo> files, List<FileInfo> duplicates, List<List<FileInfo>> duplicateGroups)
-    {
-      if (IsFileAlreadyProcessed(files[indexJ], duplicateGroups))
-        return;
-
-      if (FilesAreDuplicates(files[indexI], files[indexJ]))
-        AddDuplicatePair(files[indexI], files[indexJ], duplicates);
-    }
 
     /// <summary>
     /// Проверяет, являются ли два файла дубликатами с обработкой ошибок.
@@ -134,31 +165,6 @@
     }
 
     /// <summary>
-    /// Добавляет пару файлов в список дубликатов.
-    /// </summary>
-    /// <param name="sourceFile">Исходный файл.</param>
-    /// <param name="duplicateFile">Дубликат.</param>
-    /// <param name="duplicates">Список дубликатов.</param>
-    private static void AddDuplicatePair(FileInfo sourceFile, FileInfo duplicateFile, List<FileInfo> duplicates)
-    {
-      if (!duplicates.Contains(sourceFile))
-        duplicates.Add(sourceFile);
-
-      duplicates.Add(duplicateFile);
-    }
-
-    /// <summary>
-    /// Добавляет найденные дубликаты в общую коллекцию результатов.
-    /// </summary>
-    /// <param name="duplicates">Список дубликатов.</param>
-    /// <param name="duplicateGroups">Общая коллекция результатов.</param>
-    private static void AddDuplicatesToResults(List<FileInfo> duplicates, List<List<FileInfo>> duplicateGroups)
-    {
-      if (duplicates.Count > 0)
-        duplicateGroups.Add(duplicates);
-    }
-
-    /// <summary>
     /// Логирует ошибку сравнения файлов.
     /// </summary>
     /// <param name="file1">Первый файл.</param>
@@ -170,32 +176,26 @@
     }
 
     /// <summary>
-    /// Проверяет, был ли файл уже обработан и добавлен в группы дубликатов.
-    /// </summary>
-    /// <param name="file">Файл для проверки.</param>
-    /// <param name="duplicateGroups">Коллекция групп дубликатов.</param>
-    /// <returns>True если файл уже обработан.</returns>
-    private static bool IsFileAlreadyProcessed(FileInfo file, List<List<FileInfo>> duplicateGroups)
-    {
-      return duplicateGroups.Any(group => group.Contains(file));
-    }
-
-    /// <summary>
     /// Группирует файлы по ключу, определенному стратегией.
     /// </summary>
     /// <param name="allFiles">Все файлы для обработки.</param>
     /// <returns>Сгруппированные файлы.</returns>
     private List<IGrouping<object, FileInfo>> GetGroupedFiles(List<FileInfo> allFiles)
     {
-      List<IGrouping<object, FileInfo>> groupedFiles = [];
+      if (allFiles.Count == 0)
+        return [];
 
       if (_strategy.RequiresPreGrouping)
       {
-        groupedFiles = [.. allFiles
+        return [.. allFiles
             .GroupBy(_strategy.GroupingKeySelector)
             .Where(group => group.Count() > 1)];
       }
-      return groupedFiles;
+      else
+      {
+        // Если группировка не требуется, передаём все файлы как одну группу
+        return [allFiles.GroupBy(_ => (object)"ungrouped").First()];
+      }
     }
 
     /// <summary>
