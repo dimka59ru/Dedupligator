@@ -10,30 +10,21 @@ namespace Dedupligator.App.Helpers
     {
       try
       {
-        // Первый способ: через TryGetLocalPath
         if (folder.TryGetLocalPath() is string localPath && !string.IsNullOrEmpty(localPath))
         {
           return EnsureDirectoryPath(localPath);
         }
 
-        // Второй способ: через Path
-        if (folder.Path is { IsAbsoluteUri: true } uriPath)
+        // Опционально: fallback для edge-кейсов (например, корень диска)
+        if (folder.Name?.Length == 2 && folder.Name.EndsWith(':'))
         {
-          var path = uriPath.LocalPath;
-          return EnsureDirectoryPath(path);
-        }
-
-        // Третий способ: для корней дисков
-        if (folder.Name is string name && name.Length == 2 && name.EndsWith(':'))
-        {
-          return name + "\\";
+          return folder.Name + Path.DirectorySeparatorChar;
         }
 
         return null;
       }
       catch (Exception ex)
       {
-        // Логируем ошибку, но не падаем
         Console.WriteLine($"Error getting path from IStorageFolder: {ex.Message}");
         return null;
       }
@@ -41,11 +32,10 @@ namespace Dedupligator.App.Helpers
 
     private static string EnsureDirectoryPath(string path)
     {
-      // Убеждаемся, что путь заканчивается на directory separator
-      if (!path.EndsWith(Path.DirectorySeparatorChar.ToString()) &&
-          !path.EndsWith(Path.AltDirectorySeparatorChar.ToString()))
+      var separator = Path.DirectorySeparatorChar.ToString();
+      if (!path.EndsWith(separator, StringComparison.Ordinal))
       {
-        return path + Path.DirectorySeparatorChar;
+        return path + separator;
       }
       return path;
     }
