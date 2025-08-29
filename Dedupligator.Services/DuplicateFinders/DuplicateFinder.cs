@@ -22,8 +22,17 @@ namespace Dedupligator.Services.DuplicateFinders
     {
       var normalizedPath = PathHelper.NormalizeAndValidateDirectoryPath(directoryPath);
 
-      // 1. Получаем все подходящие файлы.
-      var allFiles = GetImageFiles(normalizedPath);
+      List<FileInfo> allFiles;
+      try
+      {
+        // 1. Получаем все подходящие файлы с поддержкой отмены
+        allFiles = GetImageFiles(normalizedPath, cancellationToken);
+      }
+      catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+      {
+        Console.WriteLine("Сканирование файлов было отменено");
+        throw;
+      }
 
       // 2. Группируем файлы по ключу (например, по размеру) для первого быстрого отсева.
       var groupedFiles = GetGroupedFiles(allFiles);
@@ -203,39 +212,52 @@ namespace Dedupligator.Services.DuplicateFinders
     /// </summary>
     /// <param name="directoryPath">Путь к директории.</param>
     /// <returns>Список файлов изображений.</returns>
-    private static List<FileInfo> GetImageFiles(string directoryPath)
+    private static List<FileInfo> GetImageFiles(string directoryPath, CancellationToken cancellationToken)
     {
       var allFiles = new List<FileInfo>();
 
       var rootDirs = Directory.GetDirectories(directoryPath);
+
+      var options = new EnumerationOptions
+      {
+        RecurseSubdirectories = true,
+        IgnoreInaccessible = true,
+        AttributesToSkip = FileAttributes.System | FileAttributes.Temporary
+      };
+
       foreach (var dir in rootDirs)
       {
-        AddImageFilesFromDirectory(allFiles, dir, new EnumerationOptions
-        {
-          RecurseSubdirectories = true,
-          IgnoreInaccessible = true,
-          AttributesToSkip = FileAttributes.System | FileAttributes.Temporary
-        });
+        cancellationToken.ThrowIfCancellationRequested();
+        AddImageFilesFromDirectory(allFiles, dir, options, cancellationToken);
       }
 
-      // Также добавляем файлы из исходной папки.
-      AddImageFilesFromDirectory(allFiles, directoryPath, new EnumerationOptions
+      // Обрабатываем файлы из корневой директории
+      cancellationToken.ThrowIfCancellationRequested();
+      var rootOptions = new EnumerationOptions
       {
         RecurseSubdirectories = false,
         IgnoreInaccessible = true,
         AttributesToSkip = FileAttributes.System | FileAttributes.Temporary
-      });
+      };
+
+      AddImageFilesFromDirectory(allFiles, directoryPath, rootOptions, cancellationToken);
 
       return allFiles;
     }
 
-    private static void AddImageFilesFromDirectory(List<FileInfo> allFiles, string directoryPath, EnumerationOptions options)
+    private static void AddImageFilesFromDirectory(List<FileInfo> allFiles, string directoryPath, EnumerationOptions options, CancellationToken cancellationToken)
     {
+      cancellationToken.ThrowIfCancellationRequested();
+
       try
       {
         var files = Directory.EnumerateFiles(directoryPath, "*", options)
             .Where(IsImageFile)
-            .Select(filePath => new FileInfo(filePath));
+            .Select(filePath =>
+            {
+              cancellationToken.ThrowIfCancellationRequested();
+              return new FileInfo(filePath);
+            });
 
         allFiles.AddRange(files);
       }
