@@ -1,12 +1,11 @@
-﻿using System;
-
-namespace Dedupligator.Services.DuplicateFinders
+﻿namespace Dedupligator.Services.DuplicateFinders
 {
   /// <summary>
   /// Стратегия поиска дубликатов.
   /// </summary>
   public interface IDuplicateMatchStrategy
   {
+
     /// <summary>
     /// Селектор ключа, для предварительной группировки файлов.
     /// </summary>

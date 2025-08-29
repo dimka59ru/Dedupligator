@@ -6,7 +6,6 @@ using Dedupligator.App.Helpers;
 using Dedupligator.App.Models;
 using Dedupligator.Services;
 using Dedupligator.Services.DuplicateFinders;
-using Dedupligator.Services.Hashes;
 using System;
 using System.Collections.Specialized;
 using System.ComponentModel;
@@ -58,8 +57,10 @@ namespace Dedupligator.App.ViewModels
       if (SelectedFolderPath is null || !Directory.Exists(SelectedFolderPath))
         return;
 
-      var hashService = new Sha256HashService();
-      var strategy = new ExactMatchStrategy(hashService);
+      //var hashService = new Sha256HashService();
+      //var strategy = new ExactMatchStrategy(hashService);
+
+      var strategy = new SimilarImageStrategy();
       var finder = new DuplicateFinder(strategy);
 
       IsProcess = true;
@@ -120,7 +121,7 @@ namespace Dedupligator.App.ViewModels
 
       await _debouncer.DebounceAsync(async () =>
       {
-        foreach (var preview in FilePreviews)
+        foreach (var preview in FilePreviews.ToList())
         {
           await preview.LoadImageAsync(PreviewImageMaxWidth);
         }

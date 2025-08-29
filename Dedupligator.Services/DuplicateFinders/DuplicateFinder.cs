@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using System.Diagnostics;
 
 namespace Dedupligator.Services.DuplicateFinders
 {
@@ -20,13 +21,21 @@ namespace Dedupligator.Services.DuplicateFinders
     /// <returns>Список групп дубликатов.</returns>
     public async Task<List<List<FileInfo>>> FindDuplicatesAsync(string directoryPath, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
     {
+      const double SCAN_PHASE_WEIGHT = 0.1;   // 0% → 10%
+      const double GROUP_PHASE_WEIGHT = 0.3;  // 10% → 40%
+      const double COMPARE_PHASE_WEIGHT = 0.6; // 40% → 100%
+
       var normalizedPath = PathHelper.NormalizeAndValidateDirectoryPath(directoryPath);
 
       List<FileInfo> allFiles;
       try
       {
-        // 1. Получаем все подходящие файлы с поддержкой отмены
-        allFiles = GetImageFiles(normalizedPath, cancellationToken);
+        //  1. Сканирование файлов
+        allFiles = await Task.Run(() => GetImageFiles(
+            normalizedPath,
+            progress,
+            SCAN_PHASE_WEIGHT,
+            cancellationToken), cancellationToken);
       }
       catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
       {
@@ -34,18 +43,47 @@ namespace Dedupligator.Services.DuplicateFinders
         throw;
       }
 
-      // 2. Группируем файлы по ключу (например, по размеру) для первого быстрого отсева.
-      var groupedFiles = GetGroupedFiles(allFiles);
+      if (allFiles.Count == 0)
+      {
+        progress?.Report(100.0);
+        return [];
+      }
 
+
+
+      // 2. Группировка (с вычислением ключей)
+      var groupedFiles = await Task.Run(() => GetGroupedFiles(
+          allFiles,
+          progress,
+          SCAN_PHASE_WEIGHT,
+          GROUP_PHASE_WEIGHT,
+          cancellationToken), cancellationToken);
+
+      var totalCompareFiles = groupedFiles.Sum(g => g.Count());
+      if (totalCompareFiles == 0)
+      {
+        progress?.Report(100.0);
+        return [];
+      }
+
+      // 3. Поиск дубликатов в группах
       var maxParallelism = Environment.ProcessorCount;
-      var duplicateGroups = await FindDuplicatesInGroupsWithThrottling(groupedFiles, progress, maxParallelism, cancellationToken);
+      var duplicateGroups = await FindDuplicatesInGroupsWithThrottling(
+          groupedFiles,
+          progress,
+          SCAN_PHASE_WEIGHT + GROUP_PHASE_WEIGHT, // начало фазы
+          COMPARE_PHASE_WEIGHT,
+          maxParallelism,
+          cancellationToken);
 
       return duplicateGroups;
     }
 
     private async Task<List<List<FileInfo>>> FindDuplicatesInGroupsWithThrottling(
         IEnumerable<IGrouping<object, FileInfo>> groupedFiles,
-        IProgress<double>? progress = null,
+        IProgress<double>? progress,
+        double startPhase,      // например, 0.6
+        double phaseWeight,     // например, 0.4
         int maxParallelism = 4,
         CancellationToken cancellationToken = default)
     {
@@ -79,16 +117,10 @@ namespace Dedupligator.Services.DuplicateFinders
               foreach (var duplicates in groupDuplicates)
                 duplicateGroups.Add(duplicates);
 
-              // Атомарно увеличиваем счётчик обработанных файлов
               var groupCount = groupFiles.Count;
-              Interlocked.Add(ref processedFilesCount, groupCount);
-
-              // Отчёт о прогрессе — только при значимом изменении
-              var currentProgress = (double)Interlocked.Read(ref processedFilesCount) / totalFiles * 100.0;
-
-              // Чтобы не спамить, можно добавить порог (например, обновлять каждые ~1%)
-              // Но для простоты: просто отчитываемся
-              progress?.Report(currentProgress);
+              var processed = Interlocked.Add(ref processedFilesCount, groupCount);
+              var progressValue = startPhase + phaseWeight * (double)processed / totalFiles;
+              progress?.Report(Math.Min(progressValue * 100, 100.0));
             }
             finally
             {
@@ -185,22 +217,47 @@ namespace Dedupligator.Services.DuplicateFinders
     /// </summary>
     /// <param name="allFiles">Все файлы для обработки.</param>
     /// <returns>Сгруппированные файлы.</returns>
-    private List<IGrouping<object, FileInfo>> GetGroupedFiles(List<FileInfo> allFiles)
+    private List<IGrouping<object, FileInfo>> GetGroupedFiles(List<FileInfo> allFiles,
+      IProgress<double>? progress,
+      double startProgress,
+      double phaseWeight,
+      CancellationToken cancellationToken)
     {
       if (allFiles.Count == 0)
         return [];
 
-      if (_strategy.RequiresPreGrouping)
+      if (!_strategy.RequiresPreGrouping)
       {
-        return [.. allFiles
-            .GroupBy(_strategy.GroupingKeySelector)
-            .Where(group => group.Count() > 1)];
-      }
-      else
-      {
-        // Если группировка не требуется, передаём все файлы как одну группу
+        progress?.Report((startProgress + phaseWeight) * 100);
         return [allFiles.GroupBy(_ => (object)"ungrouped").First()];
       }
+
+      var fileKeys = new ConcurrentDictionary<FileInfo, object>();
+      long processed = 0;
+      var total = allFiles.Count;
+
+      // Параллельно вычисляем ключи
+      Parallel.ForEach(allFiles, new ParallelOptions { CancellationToken = cancellationToken }, file =>
+      {
+        try
+        {
+          var key = _strategy.GroupingKeySelector(file);
+          fileKeys[file] = key;
+        }
+        catch
+        {
+          fileKeys[file] = "error";
+        }
+
+        var current = Interlocked.Increment(ref processed);
+        var progressValue = startProgress + phaseWeight * (double)current / total;
+        progress?.Report(progressValue * 100);
+
+      });
+
+      return [.. fileKeys
+      .GroupBy(kvp => kvp.Value, kvp => kvp.Key)
+      .Where(g => g.Count() > 1)];
     }
 
     /// <summary>
@@ -208,11 +265,17 @@ namespace Dedupligator.Services.DuplicateFinders
     /// </summary>
     /// <param name="directoryPath">Путь к директории.</param>
     /// <returns>Список файлов изображений.</returns>
-    private static List<FileInfo> GetImageFiles(string directoryPath, CancellationToken cancellationToken)
+    private static List<FileInfo> GetImageFiles(string directoryPath,
+      IProgress<double>? progress,
+      double phaseWeight,
+      CancellationToken cancellationToken)
     {
-      var allFiles = new List<FileInfo>();
+      var allFiles = new List<FileInfo>();      
 
       var rootDirs = Directory.GetDirectories(directoryPath);
+
+      var totalDirs = rootDirs.Length + 1; // +1 для корня
+      long processedDirs = 0;
 
       var options = new EnumerationOptions
       {
@@ -225,6 +288,9 @@ namespace Dedupligator.Services.DuplicateFinders
       {
         cancellationToken.ThrowIfCancellationRequested();
         AddImageFilesFromDirectory(allFiles, dir, options, cancellationToken);
+
+        var currentProgress = (double)Interlocked.Increment(ref processedDirs) / totalDirs;
+        progress?.Report(currentProgress * phaseWeight * 100);
       }
 
       // Обрабатываем файлы из корневой директории
@@ -237,6 +303,9 @@ namespace Dedupligator.Services.DuplicateFinders
       };
 
       AddImageFilesFromDirectory(allFiles, directoryPath, rootOptions, cancellationToken);
+
+      var currentProgress2 = (double)Interlocked.Increment(ref processedDirs) / totalDirs;
+      progress?.Report(currentProgress2 * phaseWeight * 100);
 
       return allFiles;
     }

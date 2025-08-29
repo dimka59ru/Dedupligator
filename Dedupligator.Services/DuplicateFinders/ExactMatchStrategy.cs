@@ -1,25 +1,27 @@
-﻿using Dedupligator.Services.Hashes;
+﻿using System.Security.Cryptography;
 
 namespace Dedupligator.Services.DuplicateFinders
 {
   /// <summary>
   /// Стратегия для поиска точных дубликатов по хэшу содержимого.
   /// </summary>
-  public class ExactMatchStrategy(IHashService hashService) : IDuplicateMatchStrategy
+  public class ExactMatchStrategy : IDuplicateMatchStrategy
   {
-    private readonly IHashService _hashService = hashService ?? throw new ArgumentNullException(nameof(hashService));
+    public Func<FileInfo, object> GroupingKeySelector => file => file.Length;
 
     public bool RequiresPreGrouping => true;
 
-    public Func<FileInfo, object> GroupingKeySelector => file => file.Length;
-
     public bool AreDuplicates(FileInfo file1, FileInfo file2)
     {
+      // Только если размер совпадает — проверяем содержимое
+      return ComputeSha256(file1) == ComputeSha256(file2);
+    }
 
-#pragma warning disable S1135 // Track uses of "TODO" tags
-                             // TODO: не плохо бы иметь кэш, чтобы не вычислять постоянно хэши.
-      return _hashService.CompareHashes(file1, file2);
-#pragma warning restore S1135 // Track uses of "TODO" tags
+    private static byte[] ComputeSha256(FileInfo file)
+    {
+      using var stream = file.OpenRead();
+      using var sha = SHA256.Create();
+      return sha.ComputeHash(stream);
     }
   }
 }
