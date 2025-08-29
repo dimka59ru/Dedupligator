@@ -59,7 +59,7 @@ namespace Dedupligator.App.ViewModels
         return;
 
       var hashService = new Sha256HashService();
-      var strategy = new HashMatchStrategy(hashService);
+      var strategy = new ExactMatchStrategy(hashService);
       var finder = new DuplicateFinder(strategy);
 
       IsProcess = true;

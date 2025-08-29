@@ -5,7 +5,7 @@ namespace Dedupligator.Services.DuplicateFinders
   /// <summary>
   /// Стратегия для поиска точных дубликатов по хэшу содержимого.
   /// </summary>
-  public class HashMatchStrategy(IHashService hashService) : IDuplicateMatchStrategy
+  public class ExactMatchStrategy(IHashService hashService) : IDuplicateMatchStrategy
   {
     private readonly IHashService _hashService = hashService ?? throw new ArgumentNullException(nameof(hashService));
 
