@@ -1,4 +1,5 @@
-﻿using System.Security.Cryptography;
+﻿using System.Runtime.Intrinsics.Arm;
+using System.Security.Cryptography;
 
 namespace Dedupligator.Services.DuplicateFinders
 {
@@ -13,15 +14,17 @@ namespace Dedupligator.Services.DuplicateFinders
 
     public bool AreDuplicates(FileInfo file1, FileInfo file2)
     {
-      // Только если размер совпадает — проверяем содержимое
-      return ComputeSha256(file1) == ComputeSha256(file2);
+      var hash1 = ComputeSha256(file1);
+      var hash2 = ComputeSha256(file2);
+      return string.Equals(hash1, hash2, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static byte[] ComputeSha256(FileInfo file)
+    private static string ComputeSha256(FileInfo file)
     {
       using var stream = file.OpenRead();
       using var sha = SHA256.Create();
-      return sha.ComputeHash(stream);
+      var hashBytes = sha.ComputeHash(stream);
+      return BitConverter.ToString(hashBytes).Replace("-", "");
     }
   }
 }

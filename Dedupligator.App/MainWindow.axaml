@@ -72,7 +72,7 @@
                     Command="{Binding ScanFolderCommand}"/>
 
               <RadioButton GroupName="First Group" Content="Точное совпадение"
-                           IsChecked="True"
+                           IsChecked="{Binding UseExactMatch}"
                            Margin="20 0 0 0"/>
               <RadioButton GroupName="First Group" Content="Похожие"
                            Margin="20 0 0 0"/>
@@ -82,10 +82,6 @@
                          ShowProgressText="True"
                          Value="{Binding Progress}"/>
 
-            <TextBlock Name="StatusTextBlock" Margin="10 0 0 0"
-                       VerticalAlignment="Center" Foreground="Gray"
-                       Text="Готов к работе"
-                       IsVisible="{Binding !IsProcess}"/>
           </StackPanel>
           
         </StackPanel>

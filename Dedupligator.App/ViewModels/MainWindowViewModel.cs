@@ -31,6 +31,9 @@ namespace Dedupligator.App.ViewModels
     private ObservableRangeCollection<DuplicateGroup> _duplicateGroups = [];
 
     [ObservableProperty]
+    private ObservableRangeCollection<ImagePreviewViewModel> _filePreviews = [];
+
+    [ObservableProperty]
     private bool _isProcess;
 
     [ObservableProperty]
@@ -41,7 +44,16 @@ namespace Dedupligator.App.ViewModels
     private DuplicateGroup? _selectedFileGroup;
 
     [ObservableProperty]
-    private ObservableRangeCollection<ImagePreviewViewModel> _filePreviews = [];
+    private bool _useExactMatch = true;
+
+    private readonly Lazy<IDuplicateMatchStrategy> _exactMatchStrategy =
+        new(() => new ExactMatchStrategy());
+
+    private readonly Lazy<IDuplicateMatchStrategy> _similarMatchStrategy =
+        new(() => new SimilarImageStrategy());
+
+    private IDuplicateMatchStrategy SelectedMatchStrategy =>
+        UseExactMatch ? _exactMatchStrategy.Value : _similarMatchStrategy.Value;
 
     public int TotalFiles => DuplicateGroups.Sum(x => x.FileCount);
     public int TotalGroup => DuplicateGroups.Count;
@@ -57,11 +69,7 @@ namespace Dedupligator.App.ViewModels
       if (SelectedFolderPath is null || !Directory.Exists(SelectedFolderPath))
         return;
 
-      //var hashService = new Sha256HashService();
-      //var strategy = new ExactMatchStrategy(hashService);
-
-      var strategy = new SimilarImageStrategy();
-      var finder = new DuplicateFinder(strategy);
+      var finder = new DuplicateFinder(SelectedMatchStrategy);
 
       IsProcess = true;
       DuplicateGroups.Clear();
