@@ -49,8 +49,6 @@ namespace Dedupligator.Services.DuplicateFinders
         return [];
       }
 
-
-
       // 2. Группировка (с вычислением ключей)
       var groupedFiles = await Task.Run(() => GetGroupedFiles(
           allFiles,
@@ -180,7 +178,6 @@ namespace Dedupligator.Services.DuplicateFinders
 
       return duplicateGroups;
     }
-
 
     /// <summary>
     /// Проверяет, являются ли два файла дубликатами с обработкой ошибок.
