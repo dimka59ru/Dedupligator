@@ -8,6 +8,8 @@ namespace Dedupligator.Services.DuplicateFinders
   /// </summary>
   public class DuplicateFinder(IDuplicateMatchStrategy strategy)
   {
+    private readonly int _maxParallelism = Environment.ProcessorCount;
+
     /// <summary>
     /// Стратегия поиска дубликатов файлов.
     /// </summary>
@@ -50,12 +52,13 @@ namespace Dedupligator.Services.DuplicateFinders
       }
 
       // 2. Группировка (с вычислением ключей)
-      var groupedFiles = await Task.Run(() => GetGroupedFiles(
+      var groupedFiles = GetGroupedFiles(
           allFiles,
           progress,
           SCAN_PHASE_WEIGHT,
           GROUP_PHASE_WEIGHT,
-          cancellationToken), cancellationToken);
+          _maxParallelism,
+          cancellationToken);
 
       var totalCompareFiles = groupedFiles.Sum(g => g.Count());
       if (totalCompareFiles == 0)
@@ -65,19 +68,18 @@ namespace Dedupligator.Services.DuplicateFinders
       }
 
       // 3. Поиск дубликатов в группах
-      var maxParallelism = Environment.ProcessorCount;
-      var duplicateGroups = await FindDuplicatesInGroupsWithThrottling(
+      var duplicateGroups = FindDuplicatesInGroupsWithThrottling(
           groupedFiles,
           progress,
           SCAN_PHASE_WEIGHT + GROUP_PHASE_WEIGHT, // начало фазы
           COMPARE_PHASE_WEIGHT,
-          maxParallelism,
+          _maxParallelism,
           cancellationToken);
 
       return duplicateGroups;
     }
 
-    private async Task<List<List<FileInfo>>> FindDuplicatesInGroupsWithThrottling(
+    private List<List<FileInfo>> FindDuplicatesInGroupsWithThrottling(
         IEnumerable<IGrouping<object, FileInfo>> groupedFiles,
         IProgress<double>? progress,
         double startPhase,      // например, 0.6
@@ -95,52 +97,37 @@ namespace Dedupligator.Services.DuplicateFinders
         return [.. duplicateGroups];
       }
 
-      var semaphore = new SemaphoreSlim(maxParallelism);
-      var tasks = new List<Task>();
-
-      try
+      var options = new ParallelOptions
       {
-        foreach (var group in groupedFiles)
-        {
-          cancellationToken.ThrowIfCancellationRequested();
-          await semaphore.WaitAsync(cancellationToken);
+        CancellationToken = cancellationToken,
+        MaxDegreeOfParallelism = maxParallelism
+      };
 
-          var task = Task.Run(() =>
+      var currentProgress = progress;
+
+      Parallel.ForEach(groupedFiles, options, group =>
+      {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var groupFiles = group.ToList();
+        var groupDuplicates = FindDuplicateGroupsInFileGroup(
+          groupFiles, 
+          cancellationToken,
+          () =>
           {
-            try
-            {
-              var groupFiles = group.ToList();
-              var groupDuplicates = FindDuplicateGroupsInFileGroup(groupFiles, cancellationToken);
+            var processed = Interlocked.Increment(ref processedFilesCount);
+            var progressValue = startPhase + phaseWeight * (double)processed / totalFiles;
+            currentProgress?.Report(Math.Min(progressValue * 100, 100.0));
+          });
 
-              foreach (var duplicates in groupDuplicates)
-                duplicateGroups.Add(duplicates);
-
-              var groupCount = groupFiles.Count;
-              var processed = Interlocked.Add(ref processedFilesCount, groupCount);
-              var progressValue = startPhase + phaseWeight * (double)processed / totalFiles;
-              progress?.Report(Math.Min(progressValue * 100, 100.0));
-            }
-            finally
-            {
-              semaphore.Release();
-            }
-          }, cancellationToken);
-
-          tasks.Add(task);
-        }
-
-        await Task.WhenAll(tasks);
-      }
-      catch (OperationCanceledException)
-      {
-        Console.WriteLine("Операция поиска дубликатов была отменена");
-        throw;
-      }
+        foreach (var duplicates in groupDuplicates)
+          duplicateGroups.Add(duplicates);
+      });
       
       return [.. duplicateGroups];
     }
 
-    private List<List<FileInfo>> FindDuplicateGroupsInFileGroup(List<FileInfo> files, CancellationToken cancellationToken)
+    private List<List<FileInfo>> FindDuplicateGroupsInFileGroup(List<FileInfo> files, CancellationToken cancellationToken, Action? progressCallback = null)
     {
       var duplicateGroups = new List<List<FileInfo>>();
       var processedFiles = new HashSet<string>();
@@ -148,7 +135,7 @@ namespace Dedupligator.Services.DuplicateFinders
       for (int i = 0; i < files.Count; i++)
       {
         var currentFile = files[i];
-
+        progressCallback?.Invoke();
         if (processedFiles.Contains(currentFile.FullName))
           continue;
 
@@ -218,7 +205,8 @@ namespace Dedupligator.Services.DuplicateFinders
       IProgress<double>? progress,
       double startProgress,
       double phaseWeight,
-      CancellationToken cancellationToken)
+      int maxParallelism = 4,
+      CancellationToken cancellationToken = default)
     {
       if (allFiles.Count == 0)
         return [];
@@ -233,9 +221,16 @@ namespace Dedupligator.Services.DuplicateFinders
       long processed = 0;
       var total = allFiles.Count;
 
-      // Параллельно вычисляем ключи
-      Parallel.ForEach(allFiles, new ParallelOptions { CancellationToken = cancellationToken }, file =>
+      var options = new ParallelOptions
       {
+        CancellationToken = cancellationToken,
+        MaxDegreeOfParallelism = maxParallelism
+      };
+
+      Parallel.ForEach(allFiles, options, file =>
+      {
+        cancellationToken.ThrowIfCancellationRequested();
+
         try
         {
           var key = _strategy.GroupingKeySelector(file);
