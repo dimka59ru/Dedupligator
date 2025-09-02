@@ -1,0 +1,34 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:Dedupligator.App.Controls">
+
+  <Style Selector="controls|IconButton">
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Button Content="{TemplateBinding Content}"
+                Command="{TemplateBinding Command}"
+                IsEnabled="{TemplateBinding IsEnabled}"
+                Background="{TemplateBinding Background}"
+                BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}"
+                Padding="{TemplateBinding Padding}">
+          <Button.ContentTemplate>
+            <DataTemplate>
+              <StackPanel Orientation="Horizontal"
+                          Spacing="{TemplateBinding IconSpacing}"
+                          VerticalAlignment="Center">
+                <Path Data="{TemplateBinding Icon}"
+                      Width="{TemplateBinding IconSize}"
+                      Height="{TemplateBinding IconSize}"
+                      Stretch="Uniform"
+                      Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                <TextBlock Text="{Binding}"
+                           VerticalAlignment="Center"/>
+              </StackPanel>
+            </DataTemplate>
+          </Button.ContentTemplate>
+        </Button>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+</Styles>

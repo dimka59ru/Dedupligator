@@ -1,0 +1,13 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Dedupligator.App.Controls.SimpleIconButton">
+  <Button Name="PART_Button"
+          Margin="0" Padding="5 0"
+          HorizontalAlignment="Stretch"
+          VerticalAlignment="Stretch">
+    <StackPanel Orientation="Horizontal" Spacing="5">
+      <ContentControl x:Name="IconControl" VerticalAlignment="Center"/>
+      <TextBlock x:Name="TextBlock" VerticalAlignment="Center"/>
+    </StackPanel>
+  </Button>
+</UserControl>

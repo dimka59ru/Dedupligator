@@ -4,138 +4,285 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:Dedupligator.App.ViewModels"
         xmlns:views="clr-namespace:Dedupligator.App.Views"
+        xmlns:controls="clr-namespace:Dedupligator.App.Controls"
+        xmlns:iconPacks="clr-namespace:IconPacks.Avalonia.Lucide;assembly=IconPacks.Avalonia.Lucide"
         mc:Ignorable="d"
-        d:DesignWidth="800"
-        d:DesignHeight="450"
+        d:DesignWidth="1000"
+        d:DesignHeight="600"
         x:Class="Dedupligator.App.MainWindow"
         x:DataType="vm:MainWindowViewModel"
-        Title="Dedupligator - Duplicate Photo Finder"
-        MinHeight="500" MinWidth="700"
-        WindowStartupLocation="CenterScreen">
+        Title="Dedupligator - Duplicate Finder"
+        MinHeight="600" MinWidth="900"
+        WindowStartupLocation="CenterScreen"
+        FontFamily="Segoe UI, Inter, system-ui"
+        Icon="/Assets/avalonia-logo.ico">
 
   <Design.DataContext>
     <vm:MainWindowViewModel/>
   </Design.DataContext>
+  
+  <!-- Цветовая палитра -->
+  <Window.Resources>
+    <!-- Основные цвета -->
+    <Color x:Key="PrimaryColor">#A7C7E7</Color>
+    <Color x:Key="PrimaryHoverColor">#91B8D9</Color>
+    <Color x:Key="PrimaryPressedColor">#7BA4CC</Color>
+    <Color x:Key="DangerColor">#F8C8C8</Color>
+    <Color x:Key="DangerHoverColor">#F4B4B4</Color>
+    <Color x:Key="DangerPressedColor">#F0A0A0</Color>
+    <Color x:Key="TextOnColorButton">#2C3E50</Color>
+
+    <!-- Фоны -->
+    <Color x:Key="BackgroundColor">#F3F4F6</Color>
+    <Color x:Key="CardBackgroundColor">#FFFFFF</Color>
+    <Color x:Key="StatusBarBackgroundColor">#E5E7EB</Color>
+    <Color x:Key="DisabledButtonBackgroundColor">#9CA3AF</Color>
+
+    <!-- Текст -->
+    <Color x:Key="TextPrimaryColor">#1F2937</Color>
+    <Color x:Key="TextSecondaryColor">#6B7280</Color>
+    <Color x:Key="TextOnPrimaryColor">#FFFFFF</Color>
+
+    <!-- Границы -->
+    <Color x:Key="BorderColor">#D1D5DB</Color>
+    <Color x:Key="BorderHoverColor">#9CA3AF</Color>
+
+    <!-- Состояния -->
+    <Color x:Key="SelectedItemBackgroundColor">#EFF6FF</Color>
+    <Color x:Key="HoverBackgroundColor">#F9FAFB</Color>
+  </Window.Resources>
 
   <Window.Styles>
+    <!-- Стиль для Window -->
+    <Style Selector="Window">
+      <Setter Property="Background" Value="#F0F0F0"/>
+    </Style>
+
+    <!-- Стиль для обычных кнопок -->
     <Style Selector="Button">
-      <Setter Property="Margin" Value="5"/>
-      <Setter Property="Padding" Value="8 4"/>
-      <Setter Property="MinWidth" Value="80"/>
+      <Setter Property="Margin" Value="8"/>
+      <Setter Property="Padding" Value="12 8"/>
+      <Setter Property="MinWidth" Value="100"/>
+      <Setter Property="FontSize" Value="14"/>
+      <Setter Property="CornerRadius" Value="8"/>
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="BorderBrush" Value="#E4E4E7"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="Foreground" Value="#18181B"/>
     </Style>
 
+    <Style Selector="Button:pointerover">
+      <Setter Property="Background" Value="#F4F4F5"/>
+      <Setter Property="BorderBrush" Value="#D4D4D8"/>
+    </Style>
+
+    <Style Selector="Button:pressed">
+      <Setter Property="Background" Value="#E4E4E7"/>
+    </Style>
+
+    <!-- Стиль для цветных кнопок -->
+    <Style Selector="controls|SimpleIconButton">
+      <Setter Property="Cursor" Value="Hand"/>
+    </Style>
+
+    <Style Selector="controls|SimpleIconButton:pointerover">
+      <Setter Property="Background" Value="{DynamicResource PrimaryHoverColor}"/>
+    </Style>
+
+    <Style Selector="controls|SimpleIconButton:pressed">
+      <Setter Property="Background" Value="{DynamicResource PrimaryPressedColor}"/>
+    </Style>
+
+    <Style Selector="controls|SimpleIconButton:pointerover">
+      <Setter Property="Background">
+        <Setter.Value>
+          <Binding Source="{DynamicResource DangerHoverColor}" />
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style Selector="controls|SimpleIconButton:pressed">
+      <Setter Property="Background">
+        <Setter.Value>
+          <Binding Source="{DynamicResource DangerPressedColor}" />
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <!-- Стиль для TextBox -->
+    <Style Selector="TextBox">
+      <Setter Property="Padding" Value="12"/>
+      <Setter Property="CornerRadius" Value="8"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="BorderBrush" Value="#E4E4E7"/>
+      <Setter Property="Background" Value="White"/>
+      <Setter Property="FontSize" Value="14"/>
+    </Style>
+
+    <Style Selector="TextBox:focus">
+      <Setter Property="BorderBrush" Value="#3B82F6"/>
+    </Style>
+
+    <!-- Стиль для ListBoxItem -->
     <Style Selector="ListBoxItem">
-      <Setter Property="Padding" Value="8 4"/>
-      <Setter Property="Margin" Value="2"/>
+      <Setter Property="Padding" Value="12 8"/>
+      <Setter Property="Margin" Value="0 2"/>
+      <Setter Property="CornerRadius" Value="6"/>
+      <Setter Property="Background" Value="Transparent"/>
     </Style>
 
+    <Style Selector="ListBoxItem:selected">
+      <Setter Property="Background" Value="#F1F5F9"/>
+      <Setter Property="BorderBrush" Value="#3B82F6"/>
+      <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+
+    <Style Selector="ListBoxItem:pointerover">
+      <Setter Property="Background" Value="#F8FAFC"/>
+    </Style>
+
+    <!-- Стиль для RadioButton -->
+    <Style Selector="RadioButton">
+      <Setter Property="Margin" Value="16 0 0 0"/>
+      <Setter Property="FontSize" Value="14"/>
+    </Style>
+
+    <!-- Стиль для ProgressBar -->
+    <Style Selector="ProgressBar">
+      <Setter Property="Height" Value="8"/>
+      <Setter Property="CornerRadius" Value="4"/>
+      <Setter Property="Background" Value="#E2E8F0"/>
+      <Setter Property="Foreground" Value="#3B82F6"/>
+    </Style>
+
+    <!-- Стиль для StatusBar -->
     <Style Selector="Border#StatusBarBorder">
       <Setter Property="Background" Value="#FFE0E0E0"/>
       <Setter Property="BorderBrush" Value="#FFCCCCCC"/>
       <Setter Property="BorderThickness" Value="1 0 0 0"/>
       <Setter Property="Padding" Value="8"/>
+      <Setter Property="CornerRadius" Value="8"/>
     </Style>
   </Window.Styles>
 
-  <Grid RowDefinitions="*,Auto">
+  <Grid RowDefinitions="*,Auto" Margin="16">
     <!-- Основное содержимое -->
     <Grid Grid.Row="0">
       <Grid.RowDefinitions>
         <RowDefinition Height="Auto"/>
         <RowDefinition Height="*"/>
       </Grid.RowDefinitions>
-      
+
       <!-- Панель управления -->
-      <Border Grid.Row="0" Background="#FFF0F0F0" Padding="10" BorderBrush="#FFCCCCCC" BorderThickness="0 0 0 1">
-        <StackPanel>
-          <TextBlock Text="Dedupligator" FontSize="16" FontWeight="Bold" Margin="0 0 0 10"/>
-          
-          <Grid ColumnDefinitions="*,Auto" Margin="0 0 0 10">
+      <Border Grid.Row="0" Background="{DynamicResource CardBackgroundColor}" Padding="20" CornerRadius="12"
+              BoxShadow="0 1 2 0 #0000000D"
+              Margin="0 0 0 16">
+        <StackPanel Spacing="16">
+          <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
             <TextBox Name="PathPreMessageTextBox" IsReadOnly="True"
-                     Padding="5"
+                     Padding="12"
+                     Height="44"
                      Text="Выберите папку для сканирования..."
                      IsVisible="{Binding SelectedFolderPath, 
                       Converter={x:Static ObjectConverters.IsNull}}"/>
             <TextBox Name="PathTextBox" IsReadOnly="True"
-                     Padding="5"
+                     Padding="12"
+                     Height="44"
                      Text="{Binding SelectedFolderPath}"
                      IsVisible="{Binding SelectedFolderPath, 
                       Converter={x:Static ObjectConverters.IsNotNull}}"/>
-            
-            <Button Name="BrowseButton" Content="Обзор..."
-                    Grid.Column="1" Margin="5 0 0 0" Width="80"
-                    Click="BrowseButton_Click"/>
+
+            <controls:SimpleIconButton Grid.Column="1" Margin="12 0 0 0" Width="100" Height="44"
+                              Text="Обзор..."
+                              Icon="{iconPacks:Lucide FolderOpen, Width=18, Height=18}"
+                              Click="BrowseButton_Click"
+                              CornerRadius="8"
+                              Background="{DynamicResource PrimaryColor}"
+                              Foreground="{DynamicResource TextOnPrimaryColor}"
+                              BorderThickness="0"/>
           </Grid>
 
-          <StackPanel Orientation="Horizontal">
-            <Button Name="ScanButton" Content="Сканировать"
-                    Command="{Binding ScanFolderCommand}"/>
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="16">
+            <controls:SimpleIconButton Height="44"
+                                       Text="Сканировать"
+                                       Icon="{iconPacks:Lucide Search, Width=18, Height=18}"
+                                       Command="{Binding ScanFolderCommand}"
+                                       CornerRadius="8"
+                                       Background="{DynamicResource PrimaryColor}"
+                                       Foreground="{DynamicResource TextOnPrimaryColor}"
+                                       BorderThickness="0"/>
 
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="12">
               <RadioButton GroupName="First Group" Content="Точное совпадение"
-                           IsChecked="{Binding UseExactMatch}"
-                           Margin="20 0 0 0"/>
-              <RadioButton GroupName="First Group" Content="Похожие"
-                           Margin="20 0 0 0"/>
+                         IsChecked="{Binding UseExactMatch}"/>
+              <RadioButton GroupName="First Group" Content="Похожие"/>
+            </StackPanel>
 
-              <ProgressBar Name="ProgressBar" Width="400" Height="20"
-                         Margin="20 0 0 0" IsVisible="{Binding IsProcess}"
-                         ShowProgressText="True"
-                         Value="{Binding Progress}"/>
-
+            <ProgressBar Name="ProgressBar" Width="300" Height="20"
+                       IsVisible="{Binding IsProcess}"
+                       ShowProgressText="True"
+                       Value="{Binding Progress}"/>
           </StackPanel>
-          
         </StackPanel>
       </Border>
 
-
-
       <!-- Основная область -->
-      <Grid Grid.Row="1" Margin="5">
+      <Grid Grid.Row="1" Margin="0">
         <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="250"/>
+          <ColumnDefinition Width="300" MinWidth="200"/>
           <ColumnDefinition Width="5"/>
-          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="*" MinWidth="300"/>
         </Grid.ColumnDefinitions>
 
-        <!-- Разделитель -->
-        <GridSplitter Grid.Column="1" Width="5" Background="#FFCCCCCC"
-                     HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+        <!-- Разделитель с возможностью изменения размера -->
+        <GridSplitter Grid.Column="1" Width="3" Background="Transparent"
+             HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+             ShowsPreview="False">
+          <GridSplitter.Template>
+            <ControlTemplate>
+              <Rectangle Fill="#E4E4E7" Width="1" HorizontalAlignment="Center"/>
+            </ControlTemplate>
+          </GridSplitter.Template>
+        </GridSplitter>
 
         <!-- Левая панель - группы -->
-        <Border Grid.Column="0" Background="White" CornerRadius="3" Padding="5">
-          <Grid RowDefinitions="20, *">
-            <TextBlock Text="Группы дубликатов" FontWeight="Bold" Margin="0 0 0 5" Grid.Row="0"/>
+        <Border Grid.Column="0" Background="{DynamicResource CardBackgroundColor}" CornerRadius="12" Padding="16"
+                BoxShadow="0 1 2 0 #0000000D">
+          <Grid RowDefinitions="Auto, 8, *">
+            <TextBlock Text="Группы дубликатов" FontSize="16" FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextPrimaryColor}" Margin="0 0 0 8" Grid.Row="0"/>
 
-            <ListBox Name="GroupsListBox" SelectionMode="Single"
-                     ItemsSource="{Binding DuplicateGroups}"
-                     Grid.Row="1"
-                     SelectedItem="{Binding SelectedFileGroup}">
-              <ListBox.ItemTemplate>
-                <DataTemplate>
-                  <StackPanel>
-                    <TextBlock Text="{Binding GroupName}" FontWeight="SemiBold"/>
-                    <StackPanel Orientation="Horizontal">
-                      <TextBlock Text="Количество файлов: " Foreground="Gray" FontSize="11"/>
-                      <TextBlock Text="{Binding FileCount}" Foreground="Gray" FontSize="11"/>
+            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+              <ListBox Name="GroupsListBox" SelectionMode="Single"
+                       ItemsSource="{Binding DuplicateGroups}"
+                       SelectedItem="{Binding SelectedFileGroup}"
+                       Background="Transparent"
+                       BorderThickness="0">
+                <ListBox.ItemTemplate>
+                  <DataTemplate>
+                    <StackPanel Spacing="4">
+                      <TextBlock Text="{Binding GroupName}" FontWeight="SemiBold" FontSize="14" Foreground="{DynamicResource TextPrimaryColor}"/>
+                      <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="Файлов: " FontSize="12" Foreground="{DynamicResource TextSecondaryColor}"/>
+                        <TextBlock Text="{Binding FileCount}" FontSize="12" Foreground="{DynamicResource TextSecondaryColor}" FontWeight="SemiBold"/>
+                      </StackPanel>
+                      <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="Размер: " FontSize="12" Foreground="{DynamicResource TextSecondaryColor}"/>
+                        <TextBlock Text="{Binding TotalSize}" FontSize="12" Foreground="{DynamicResource TextSecondaryColor}" FontWeight="SemiBold"/>
+                      </StackPanel>
                     </StackPanel>
-                    <StackPanel Orientation="Horizontal">
-                      <TextBlock Text="Суммарный размер: " Foreground="Gray" FontSize="11"/>
-                      <TextBlock Text="{Binding TotalSize}" Foreground="Gray" FontSize="11"/>
-                    </StackPanel>
-                  </StackPanel>
-                </DataTemplate>
-              </ListBox.ItemTemplate>
-            </ListBox>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </ScrollViewer>
           </Grid>
         </Border>
 
         <!-- Правая панель - превью -->
-        <Border Grid.Column="2" Background="White" CornerRadius="3" Padding="10">
-          <Grid RowDefinitions="Auto,*,Auto">
-            <TextBlock Name="PreviewTitleText" Text="Выберите группу для просмотра"
-                       FontWeight="Bold" Margin="0 0 0 10"/>
-
-            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+        <Border Grid.Column="2" Background="{DynamicResource CardBackgroundColor}" CornerRadius="12" Padding="20" Margin="16 0 0 0"
+                BoxShadow="0 1 2 0 #0000000D">
+          <Grid RowDefinitions="*,Auto">
+            <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" Padding="4">
               <ItemsControl Name="PreviewItemsControl"
                             ItemsSource="{Binding FilePreviews}">
                 <ItemsControl.ItemsPanel>
@@ -146,36 +293,45 @@
 
                 <ItemsControl.ItemTemplate>
                   <DataTemplate DataType="{x:Type vm:ImagePreviewViewModel}">
-                    <views:ImagePreviewView />
+                    <views:ImagePreviewView Margin="0 0 16 16"/>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
             </ScrollViewer>
 
-            <Button Name="DeleteButton" Grid.Row="2"
-                    Content="Удалить отмеченные файлы"
-                    Command="{Binding RemoveFilesCommand}"
-                    HorizontalAlignment="Right" Margin="0 10 0 0"/>
+            <controls:SimpleIconButton Grid.Row="1" Margin="0 16 0 0" Height="44"
+                                       HorizontalAlignment="Right" Text="Удалить отмеченные"
+                                       Icon="{iconPacks:Lucide Trash2, Width=18, Height=18}"
+                                       Command="{Binding RemoveFilesCommand}"
+                                       CornerRadius="8"
+                                       Background="{DynamicResource DangerColor}"
+                                       Foreground="{DynamicResource TextOnPrimaryColor}"
+                                       BorderThickness="0"/>
           </Grid>
         </Border>
       </Grid>
     </Grid>
 
-    <!-- Панель статуса (замена StatusBar) -->
-    <Border Grid.Row="1" Name="StatusBarBorder">
+    <!-- Панель статуса -->
+    <Border Grid.Row="1" Name="StatusBarBorder" Margin="0 16 0 0">
       <Grid ColumnDefinitions="*,Auto">
-        <StackPanel Orientation="Horizontal" Grid.Column="0">          
-          <TextBlock Text="Файлов найдено: " VerticalAlignment="Center"/>
-          <TextBlock Text="{Binding TotalFiles}" VerticalAlignment="Center"/>
-          <TextBlock Text=" | " VerticalAlignment="Center"/>
-          <TextBlock Text="Групп: " VerticalAlignment="Center"/>
-          <TextBlock Text="{Binding TotalGroup}" VerticalAlignment="Center"/>
+        <StackPanel Orientation="Horizontal" Grid.Column="0" Spacing="12" VerticalAlignment="Center">
+          <StackPanel Orientation="Horizontal" Spacing="4">
+            <TextBlock Text="Файлов:" FontSize="12" Foreground="{DynamicResource TextSecondaryColor}" FontWeight="Medium"/>
+            <TextBlock Text="{Binding TotalFiles}" FontSize="12" Foreground="{DynamicResource TextSecondaryColor}" FontWeight="SemiBold"/>
+          </StackPanel>
+
+          <Rectangle Width="1" Height="16" Fill="{DynamicResource BorderColor}"/>
+
+          <StackPanel Orientation="Horizontal" Spacing="4">
+            <TextBlock Text="Групп:" FontSize="12" Foreground="{DynamicResource TextSecondaryColor}" FontWeight="Medium"/>
+            <TextBlock Text="{Binding TotalGroup}" FontSize="12" Foreground="{DynamicResource TextSecondaryColor}" FontWeight="SemiBold"/>
+          </StackPanel>
         </StackPanel>
-        
-        <TextBlock Name="VersionTextBlock" Text="{Binding AppVersion}"
+
+        <TextBlock Name="VersionTextBlock" Text="{Binding AppVersion}" FontSize="12" Foreground="{DynamicResource TextSecondaryColor}"
                    Grid.Column="1" VerticalAlignment="Center"/>
       </Grid>
     </Border>
-    
-    </Grid>
+  </Grid>
 </Window>

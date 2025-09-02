@@ -20,10 +20,6 @@ namespace Dedupligator.App
       var collection = new ServiceCollection();
       collection.AddCommonServices();
 
-      // Creates a ServiceProvider containing services from the provided IServiceCollection
-      //var services = collection.BuildServiceProvider();
-
-      //var vm = services.GetRequiredService<MainWindowViewModel>();
       if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
       {
         desktop.MainWindow = new MainWindow();
@@ -37,8 +33,7 @@ namespace Dedupligator.App
   {
     public static void AddCommonServices(this IServiceCollection collection)
     {
-      //collection.AddScoped<DuplicateFinder>();
-      //collection.AddTransient<MainWindowViewModel>();
+      // do nothing
     }
   }
 }
