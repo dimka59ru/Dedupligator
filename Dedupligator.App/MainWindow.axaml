@@ -231,7 +231,7 @@
             <TextBlock Text="{Binding TotalFiles}" FontSize="12" Foreground="{DynamicResource TextSecondaryColor}" FontWeight="SemiBold"/>
           </StackPanel>
 
-          <Rectangle Width="1" Height="16" Fill="{DynamicResource BorderColor}"/>
+          <Rectangle Width="1" Height="16" Fill="{DynamicResource SemiGrey2Color}"/>
 
           <StackPanel Orientation="Horizontal" Spacing="4">
             <TextBlock Text="Групп:" FontSize="12" Foreground="{DynamicResource TextSecondaryColor}" FontWeight="Medium"/>
