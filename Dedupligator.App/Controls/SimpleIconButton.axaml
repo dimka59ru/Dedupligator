@@ -4,7 +4,8 @@
   <Button Name="PART_Button"
           Margin="0" Padding="5 0"
           HorizontalAlignment="Stretch"
-          VerticalAlignment="Stretch">
+          VerticalAlignment="Stretch"
+          Theme="{Binding Theme, RelativeSource={RelativeSource AncestorType=UserControl}}">
     <StackPanel Orientation="Horizontal" Spacing="5">
       <ContentControl x:Name="IconControl" VerticalAlignment="Center"/>
       <TextBlock x:Name="TextBlock" VerticalAlignment="Center"/>

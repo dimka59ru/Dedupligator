@@ -7,8 +7,8 @@
              x:Class="Dedupligator.App.Views.ImagePreviewView"
              x:DataType="vm:ImagePreviewViewModel">
 
-  <Border Margin="5" Padding="8" Background="#F0F0F0"
-                            CornerRadius="3" Width="250">
+  <Border Margin="5" Padding="8" Background="{DynamicResource SemiGrey1Color}"
+                            CornerRadius="6" Width="250">
     <StackPanel>
       <Image Source="{Binding ImagePreview}"
            Height="200" Stretch="Uniform"

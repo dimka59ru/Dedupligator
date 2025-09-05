@@ -10,6 +10,8 @@ namespace Dedupligator.App.Controls
 {
   public partial class SimpleIconButton : UserControl
   {
+    private Button? _button;
+
     public static readonly StyledProperty<string> TextProperty =
         AvaloniaProperty.Register<SimpleIconButton, string>(nameof(Text), "Button");
 
@@ -22,20 +24,41 @@ namespace Dedupligator.App.Controls
     public static readonly StyledProperty<object> CommandParameterProperty =
         AvaloniaProperty.Register<SimpleIconButton, object>(nameof(CommandParameter));
 
+    public static readonly StyledProperty<string> ButtonClassProperty =
+      AvaloniaProperty.Register<SimpleIconButton, string>(nameof(ButtonClass));
+
+    public static readonly RoutedEvent<RoutedEventArgs> ClickEvent = 
+      RoutedEvent.Register<SimpleIconButton, RoutedEventArgs>(nameof(Click), RoutingStrategies.Bubble);
+
     public event EventHandler<RoutedEventArgs> Click
     {
       add => AddHandler(ClickEvent, value);
       remove => RemoveHandler(ClickEvent, value);
     }
 
-    public static readonly RoutedEvent<RoutedEventArgs> ClickEvent =
-        RoutedEvent.Register<SimpleIconButton, RoutedEventArgs>(nameof(Click), RoutingStrategies.Bubble);
+    public string ButtonClass
+    {
+      get => GetValue(ButtonClassProperty);
+      set => SetValue(ButtonClassProperty, value);
 
-    private Button? _button;
+    }
 
     public SimpleIconButton()
     {
       InitializeComponent();
+
+      // Привязка изменения свойства к классам кнопки
+      ButtonClassProperty.Changed.AddClassHandler<SimpleIconButton>((x, e) =>
+      {
+        if (x.PART_Button != null && e.NewValue is string newClass)
+        {
+          x.PART_Button.Classes.Clear();
+          if (!string.IsNullOrEmpty(newClass))
+          {
+            x.PART_Button.Classes.Add(newClass);
+          }
+        }
+      });
     }
 
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)

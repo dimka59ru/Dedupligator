@@ -1,4 +1,5 @@
-﻿using Avalonia.Platform.Storage;
+﻿using Avalonia.Media.Imaging;
+using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Dedupligator.App.Collections;
@@ -45,6 +46,9 @@ namespace Dedupligator.App.ViewModels
 
     [ObservableProperty]
     private bool _useExactMatch = true;
+
+    [ObservableProperty]
+    private Bitmap? _selectedImage;
 
     private readonly Lazy<IDuplicateMatchStrategy> _exactMatchStrategy =
         new(() => new ExactMatchStrategy());
@@ -111,6 +115,23 @@ namespace Dedupligator.App.ViewModels
       {
         FilePreviews.Remove(item);
       }
+    }
+
+    [RelayCommand]
+    private async Task OpenFullScreen(ImagePreviewViewModel? imageVm)
+    {
+      if (imageVm != null)
+      {
+        var (Width, _) = await ImageHelper.GetImageDimensionsAsync(imageVm.FilePath);
+        var image = await ImageHelper.LoadImageAsync(imageVm.FilePath, (int)Width);
+        SelectedImage = image.Bitmap;
+      }
+    }
+
+    [RelayCommand]
+    private void CloseFullScreen(ImagePreviewViewModel? imageVm)
+    {
+      SelectedImage = null;
     }
 
     async partial void OnSelectedFileGroupChanged(DuplicateGroup? oldValue, DuplicateGroup? newValue)

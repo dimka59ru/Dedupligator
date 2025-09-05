@@ -1,8 +1,9 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:semi="https://irihi.tech/semi"
              xmlns:local="using:Dedupligator.App"
              x:Class="Dedupligator.App.App"
-             RequestedThemeVariant="Default">
+             RequestedThemeVariant="Light">
              <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
 
   <Application.DataTemplates>
@@ -10,7 +11,7 @@
   </Application.DataTemplates>
   
     <Application.Styles>
-        <FluentTheme />
+      <semi:SemiTheme Locale="ru-RU" />
 
       <StyleInclude Source="avares://IconPacks.Avalonia.Lucide/Lucide.axaml" />
     </Application.Styles>
