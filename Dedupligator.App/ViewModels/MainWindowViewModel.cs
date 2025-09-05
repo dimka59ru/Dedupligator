@@ -131,6 +131,11 @@ namespace Dedupligator.App.ViewModels
     [RelayCommand]
     private void CloseFullScreen(ImagePreviewViewModel? imageVm)
     {
+      CloseFullScreen();
+    }
+
+    private void CloseFullScreen()
+    {
       SelectedImage = null;
     }
 
@@ -198,6 +203,8 @@ namespace Dedupligator.App.ViewModels
               item.PropertyChanged += ImagePreview_PropertyChanged;
             }
           }
+
+          CloseFullScreen();
           break;
       }
 
