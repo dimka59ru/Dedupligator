@@ -97,6 +97,8 @@ namespace Dedupligator.App.ViewModels
         )).ToList();
 
         DuplicateGroups.ReplaceWith(groupsForUi);
+
+        SelectedFileGroup = DuplicateGroups.Count > 0 ? DuplicateGroups[0] : null;
       }
       finally
       {
