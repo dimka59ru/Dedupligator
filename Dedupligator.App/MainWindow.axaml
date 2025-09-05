@@ -87,8 +87,16 @@
 
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
               <RadioButton GroupName="First Group" Content="Точное совпадение"
-                         IsChecked="{Binding UseExactMatch}"/>
-              <RadioButton GroupName="First Group" Content="Похожие"/>
+                           IsChecked="{Binding UseExactMatch}"
+                           Theme="{DynamicResource CardRadioButton}"
+                           Height="36"
+                           Width="200"
+                           Padding="8 0"/>
+              <RadioButton GroupName="First Group" Content="Похожие"
+                           Theme="{DynamicResource CardRadioButton}"
+                           Height="36"
+                           Width="200"
+                           Padding="8 0"/>
             </StackPanel>
 
             <ProgressBar Name="ProgressBar" Width="300" Height="20"
@@ -114,8 +122,11 @@
                 Margin="0 0 2 0"
                 Classes="CommonBorderStyle">
           <Grid RowDefinitions="Auto, 8, *">
-            <TextBlock Text="Группы дубликатов" FontSize="16" FontWeight="SemiBold"
-                       Foreground="{DynamicResource TextPrimaryColor}" Margin="0 0 0 8" Grid.Row="0"/>
+            <TextBlock Text="Группы дубликатов"
+                       Classes="H6"
+                       Theme="{StaticResource TitleTextBlock}" 
+                       Margin="0 0 0 8" 
+                       Grid.Row="0"/>
 
             <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
               <ListBox Name="GroupsListBox" SelectionMode="Single"
@@ -177,7 +188,7 @@
             <Grid RowDefinitions="*,Auto"
                   Margin="0"
                   IsVisible="{Binding SelectedImage, Converter={x:Static ObjectConverters.IsNull}}">
-              <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" Padding="8">
+              <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" Padding="0">
                 <ItemsControl Name="PreviewItemsControl"
                               ItemsSource="{Binding FilePreviews}"
                               Margin="0">
@@ -197,7 +208,7 @@
                 </ItemsControl>
               </ScrollViewer>
 
-              <controls:SimpleIconButton Grid.Row="1" Margin="0 0 0 0"
+              <controls:SimpleIconButton Grid.Row="1" Margin="0 0 8 8"
                                          HorizontalAlignment="Right" Text="Удалить отмеченные"
                                          Icon="{iconPacks:Lucide Trash2, Width=18, Height=18}"
                                          Command="{Binding RemoveFilesCommand}"
