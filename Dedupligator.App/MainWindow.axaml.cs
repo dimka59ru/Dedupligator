@@ -7,8 +7,6 @@ namespace Dedupligator.App
 {
   public partial class MainWindow : Window
   {
-    private readonly MainWindowViewModel _mainViewModel = new();
-
     private async void BrowseButton_Click(object sender, RoutedEventArgs args)
     {
       var topLevel = TopLevel.GetTopLevel(this);
@@ -16,14 +14,15 @@ namespace Dedupligator.App
         return;
 
       var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions());
-      if (folders.Count > 0)
-        _mainViewModel.SelectedFolder = folders[0];
+      if (folders.Count > 0 && DataContext is MainWindowViewModel vm)
+      {
+          vm.SelectedFolder = folders[0];
+      }
     }
 
     public MainWindow()
     {
       InitializeComponent();
-      DataContext = _mainViewModel;
     }
   }
 }
