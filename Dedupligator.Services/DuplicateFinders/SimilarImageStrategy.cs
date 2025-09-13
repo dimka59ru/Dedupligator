@@ -3,7 +3,7 @@ using Dedupligator.Services.Hash;
 
 namespace Dedupligator.Services.DuplicateFinders
 {
-  public class SimilarImageStrategy : IDuplicateMatchStrategy
+  public class SimilarImageStrategy : ICachedDuplicateMatchStrategy
   {
     private readonly int _threshold = 10;
 
@@ -26,7 +26,7 @@ namespace Dedupligator.Services.DuplicateFinders
     /// <summary>
     /// Очищает кэш pHash (можно вызывать периодически)
     /// </summary>
-    public static void ClearCache()
+    public void ClearCache()
     {
       PHashCache.Clear();
     }

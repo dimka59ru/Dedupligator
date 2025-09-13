@@ -24,9 +24,9 @@ namespace Dedupligator.Services.DuplicateFinders
     /// <returns>Список групп дубликатов.</returns>
     public List<List<FileInfo>> FindDuplicates(string directoryPath, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
     {
-      const double SCAN_PHASE_WEIGHT = 0.1;    // 0% → 10%
-      const double GROUP_PHASE_WEIGHT = 0.3;   // 10% → 40%
-      const double COMPARE_PHASE_WEIGHT = 0.6; // 40% → 100%
+      const double SCAN_PHASE_WEIGHT = 0.01;    // 0% → 1%
+      const double GROUP_PHASE_WEIGHT = 0.49;   // 1% → 50%
+      const double COMPARE_PHASE_WEIGHT = 0.5; // 50% → 100%
 
       var normalizedPath = PathHelper.NormalizeAndValidateDirectoryPath(directoryPath);
 

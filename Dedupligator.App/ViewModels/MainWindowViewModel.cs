@@ -6,6 +6,7 @@ using Dedupligator.App.Collections;
 using Dedupligator.App.Helpers;
 using Dedupligator.App.Models;
 using Dedupligator.Services;
+using Dedupligator.Services.Cache;
 using Dedupligator.Services.DuplicateFinders;
 using System;
 using System.Collections.Specialized;
@@ -103,6 +104,11 @@ namespace Dedupligator.App.ViewModels
       {
         IsProcess = false;
         _cancellationTokenSource?.Dispose();
+
+        if (strategy is ICachedDuplicateMatchStrategy cachedStrategy)
+        {
+          cachedStrategy.ClearCache();
+        }
       }
     }
 
