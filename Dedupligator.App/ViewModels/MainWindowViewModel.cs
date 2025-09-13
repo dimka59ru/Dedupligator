@@ -57,6 +57,9 @@ namespace Dedupligator.App.ViewModels
     [ObservableProperty]
     private Bitmap? _selectedImage;
 
+    [ObservableProperty]
+    private float _threshold;
+
     public int TotalFiles => DuplicateGroups.Sum(x => x.FileCount);
     public int TotalGroup => DuplicateGroups.Count;
     public string? SelectedFolderPath => SelectedFolder?.GetSafeLocalPath();
@@ -155,7 +158,7 @@ namespace Dedupligator.App.ViewModels
     private IDuplicateMatchStrategy CreateStrategy()
     {
       if (UseNeuro)
-        return new NeuralSimilarityStrategy();
+        return new NeuralSimilarityStrategy(Threshold);
 
       if (UseExactMatch)
         return new ExactMatchStrategy();

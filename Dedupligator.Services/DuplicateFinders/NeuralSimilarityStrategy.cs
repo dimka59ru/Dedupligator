@@ -12,6 +12,7 @@ namespace Dedupligator.Services.DuplicateFinders
     private readonly InferenceSession _session;
     private readonly string _inputName;
     private readonly ConcurrentDictionary<string, float[]> _embeddingCache;
+    private readonly float _threshold;
     private bool _disposed = false;
 
     public Func<FileInfo, object> GroupingKeySelector => file =>
@@ -23,7 +24,7 @@ namespace Dedupligator.Services.DuplicateFinders
 
     public bool AreDuplicates(FileInfo file1, FileInfo file2)
     {
-      return AreSimilar(file1, file2, 0.95f);
+      return AreSimilar(file1, file2, _threshold);
     }
 
     public bool AreSimilar(FileInfo file1, FileInfo file2, float similarityThreshold = 0.7f)
@@ -137,7 +138,7 @@ namespace Dedupligator.Services.DuplicateFinders
       }
     }
 
-    public NeuralSimilarityStrategy()
+    public NeuralSimilarityStrategy(float Threshold)
     {
       var modelPath = Path.Combine(Directory.GetCurrentDirectory(), "Assets", "mobilenetv2-7.onnx");
       if (!File.Exists(modelPath))
@@ -146,6 +147,7 @@ namespace Dedupligator.Services.DuplicateFinders
       _session = new InferenceSession(modelPath);
       _inputName = _session.InputMetadata.Keys.First();
       _embeddingCache = [];
+      _threshold = Threshold;
     }
   }
 }
