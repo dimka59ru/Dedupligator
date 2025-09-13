@@ -1,4 +1,5 @@
-﻿using System.Collections.Concurrent;
+﻿using Dedupligator.Common.Helpers;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 
 namespace Dedupligator.Services.DuplicateFinders
@@ -21,10 +22,10 @@ namespace Dedupligator.Services.DuplicateFinders
     /// <param name="directoryPath">Путь к директории для поиска.</param>
     /// <param name="progressCallback">Колбэк для прогресса.</param>
     /// <returns>Список групп дубликатов.</returns>
-    public async Task<List<List<FileInfo>>> FindDuplicatesAsync(string directoryPath, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
+    public List<List<FileInfo>> FindDuplicates(string directoryPath, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
     {
-      const double SCAN_PHASE_WEIGHT = 0.1;   // 0% → 10%
-      const double GROUP_PHASE_WEIGHT = 0.3;  // 10% → 40%
+      const double SCAN_PHASE_WEIGHT = 0.1;    // 0% → 10%
+      const double GROUP_PHASE_WEIGHT = 0.3;   // 10% → 40%
       const double COMPARE_PHASE_WEIGHT = 0.6; // 40% → 100%
 
       var normalizedPath = PathHelper.NormalizeAndValidateDirectoryPath(directoryPath);
@@ -33,11 +34,7 @@ namespace Dedupligator.Services.DuplicateFinders
       try
       {
         //  1. Сканирование файлов
-        allFiles = await Task.Run(() => GetImageFiles(
-            normalizedPath,
-            progress,
-            SCAN_PHASE_WEIGHT,
-            cancellationToken), cancellationToken);
+        allFiles = GetImageFiles(normalizedPath, progress, SCAN_PHASE_WEIGHT, _maxParallelism, cancellationToken);
       }
       catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
       {
@@ -82,8 +79,8 @@ namespace Dedupligator.Services.DuplicateFinders
     private List<List<FileInfo>> FindDuplicatesInGroupsWithThrottling(
         IEnumerable<IGrouping<object, FileInfo>> groupedFiles,
         IProgress<double>? progress,
-        double startPhase,      // например, 0.6
-        double phaseWeight,     // например, 0.4
+        double startPhase,
+        double phaseWeight,
         int maxParallelism = 4,
         CancellationToken cancellationToken = default)
     {
@@ -107,8 +104,6 @@ namespace Dedupligator.Services.DuplicateFinders
 
       Parallel.ForEach(groupedFiles, options, group =>
       {
-        cancellationToken.ThrowIfCancellationRequested();
-
         var groupFiles = group.ToList();
         var groupDuplicates = FindDuplicateGroupsInFileGroup(
           groupFiles, 
@@ -136,6 +131,7 @@ namespace Dedupligator.Services.DuplicateFinders
       {
         var currentFile = files[i];
         progressCallback?.Invoke();
+
         if (processedFiles.Contains(currentFile.FullName))
           continue;
 
@@ -229,8 +225,6 @@ namespace Dedupligator.Services.DuplicateFinders
 
       Parallel.ForEach(allFiles, options, file =>
       {
-        cancellationToken.ThrowIfCancellationRequested();
-
         try
         {
           var key = _strategy.GroupingKeySelector(file);
@@ -257,33 +251,41 @@ namespace Dedupligator.Services.DuplicateFinders
     /// </summary>
     /// <param name="directoryPath">Путь к директории.</param>
     /// <returns>Список файлов изображений.</returns>
-    private static List<FileInfo> GetImageFiles(string directoryPath,
-      IProgress<double>? progress,
-      double phaseWeight,
-      CancellationToken cancellationToken)
+    private static List<FileInfo> GetImageFiles(
+      string directoryPath, 
+      IProgress<double>? progress, 
+      double phaseWeight, 
+      int maxParallelism = 4, 
+      CancellationToken cancellationToken = default)
     {
-      var allFiles = new List<FileInfo>();      
+      var allFiles = new ConcurrentBag<FileInfo>();
 
       var rootDirs = Directory.GetDirectories(directoryPath);
 
       var totalDirs = rootDirs.Length + 1; // +1 для корня
       long processedDirs = 0;
 
-      var options = new EnumerationOptions
+      var enumerationOptions = new EnumerationOptions
       {
         RecurseSubdirectories = true,
         IgnoreInaccessible = true,
         AttributesToSkip = FileAttributes.System | FileAttributes.Temporary
       };
 
-      foreach (var dir in rootDirs)
+      var parallelOptions = new ParallelOptions
       {
-        cancellationToken.ThrowIfCancellationRequested();
-        AddImageFilesFromDirectory(allFiles, dir, options, cancellationToken);
+        CancellationToken = cancellationToken,
+        MaxDegreeOfParallelism = maxParallelism,
+      };
+
+      Parallel.ForEach(rootDirs, parallelOptions, dir =>
+      {
+        var files = AddImageFilesFromDirectory(dir, enumerationOptions, cancellationToken);
+        allFiles.AddRange(files);
 
         var currentProgress = (double)Interlocked.Increment(ref processedDirs) / totalDirs;
         progress?.Report(currentProgress * phaseWeight * 100);
-      }
+      });
 
       // Обрабатываем файлы из корневой директории
       cancellationToken.ThrowIfCancellationRequested();
@@ -294,37 +296,38 @@ namespace Dedupligator.Services.DuplicateFinders
         AttributesToSkip = FileAttributes.System | FileAttributes.Temporary
       };
 
-      AddImageFilesFromDirectory(allFiles, directoryPath, rootOptions, cancellationToken);
+      var rootFiles = AddImageFilesFromDirectory(directoryPath, rootOptions, cancellationToken);
+      allFiles.AddRange(rootFiles);
 
       var currentProgress2 = (double)Interlocked.Increment(ref processedDirs) / totalDirs;
       progress?.Report(currentProgress2 * phaseWeight * 100);
 
-      return allFiles;
+      return [.. allFiles];
     }
 
-    private static void AddImageFilesFromDirectory(List<FileInfo> allFiles, string directoryPath, EnumerationOptions options, CancellationToken cancellationToken)
+    private static List<FileInfo> AddImageFilesFromDirectory(string directoryPath, EnumerationOptions options, CancellationToken cancellationToken)
     {
       cancellationToken.ThrowIfCancellationRequested();
 
       try
       {
-        var files = Directory.EnumerateFiles(directoryPath, "*", options)
+        return [.. Directory.EnumerateFiles(directoryPath, "*", options)
             .Where(IsImageFile)
             .Select(filePath =>
             {
               cancellationToken.ThrowIfCancellationRequested();
               return new FileInfo(filePath);
-            });
-
-        allFiles.AddRange(files);
+            })];
       }
       catch (UnauthorizedAccessException)
       {
         // Пропускаем папки без доступа
+        return [];
       }
       catch (IOException)
       {
         // Пропускаем папки с ошибками ввода-вывода
+        return [];
       }
     }
 

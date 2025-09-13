@@ -16,6 +16,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Dedupligator.Common\Dedupligator.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Update="Assets\mobilenetv2-7.onnx">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

@@ -87,7 +87,7 @@ namespace Dedupligator.App.ViewModels
           Progress = p;
         });
 
-        var duplicateGroups = await Task.Run(() => finder.FindDuplicatesAsync(SelectedFolderPath, progress));
+        var duplicateGroups = await Task.Run(() => finder.FindDuplicates(SelectedFolderPath, progress));
 
         var groupsForUi = duplicateGroups.Select(group => new DuplicateGroup(
             GroupName: group[0].Name,
