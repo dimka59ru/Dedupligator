@@ -13,6 +13,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Dedupligator.App.ViewModels
@@ -22,6 +23,8 @@ namespace Dedupligator.App.ViewModels
     private const int PreviewImageMaxWidth = 250;
 
     private readonly AsyncDebouncer _debouncer = new(500);
+
+    private CancellationTokenSource? _cancellationTokenSource;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ScanFolderCommand))]
@@ -38,6 +41,9 @@ namespace Dedupligator.App.ViewModels
     private bool _isProcess;
 
     [ObservableProperty]
+    private bool _useNeuro;
+
+    [ObservableProperty]
     private double _progress;
 
     [ObservableProperty]
@@ -49,15 +55,6 @@ namespace Dedupligator.App.ViewModels
 
     [ObservableProperty]
     private Bitmap? _selectedImage;
-
-    private readonly Lazy<IDuplicateMatchStrategy> _exactMatchStrategy =
-        new(() => new ExactMatchStrategy());
-
-    private readonly Lazy<IDuplicateMatchStrategy> _similarMatchStrategy =
-        new(() => new SimilarImageStrategy());
-
-    private IDuplicateMatchStrategy SelectedMatchStrategy =>
-        UseExactMatch ? _exactMatchStrategy.Value : _similarMatchStrategy.Value;
 
     public int TotalFiles => DuplicateGroups.Sum(x => x.FileCount);
     public int TotalGroup => DuplicateGroups.Count;
@@ -73,7 +70,8 @@ namespace Dedupligator.App.ViewModels
       if (SelectedFolderPath is null || !Directory.Exists(SelectedFolderPath))
         return;
 
-      var finder = new DuplicateFinder(SelectedMatchStrategy);
+      var strategy = CreateStrategy();
+      var finder = new DuplicateFinder(strategy);
 
       IsProcess = true;
       DuplicateGroups.Clear();
@@ -87,7 +85,8 @@ namespace Dedupligator.App.ViewModels
           Progress = p;
         });
 
-        var duplicateGroups = await Task.Run(() => finder.FindDuplicates(SelectedFolderPath, progress));
+        _cancellationTokenSource = new CancellationTokenSource();
+        var duplicateGroups = await Task.Run(() => finder.FindDuplicates(SelectedFolderPath, progress, _cancellationTokenSource.Token));
 
         var groupsForUi = duplicateGroups.Select(group => new DuplicateGroup(
             GroupName: group[0].Name,
@@ -103,9 +102,15 @@ namespace Dedupligator.App.ViewModels
       finally
       {
         IsProcess = false;
+        _cancellationTokenSource?.Dispose();
       }
     }
 
+    [RelayCommand]
+    private void StopScanFolder()
+    {
+      _cancellationTokenSource?.Cancel();
+    }
 
     private bool CanExecuteRemoveFiles => FilePreviews.Any(x => x.MarkedForDeletion);
 
@@ -139,6 +144,17 @@ namespace Dedupligator.App.ViewModels
     private void CloseFullScreen()
     {
       SelectedImage = null;
+    }
+
+    private IDuplicateMatchStrategy CreateStrategy()
+    {
+      if (UseNeuro)
+        return new NeuralSimilarityStrategy();
+
+      if (UseExactMatch)
+        return new ExactMatchStrategy();
+
+      return new SimilarImageStrategy();
     }
 
     async partial void OnSelectedFileGroupChanged(DuplicateGroup? oldValue, DuplicateGroup? newValue)

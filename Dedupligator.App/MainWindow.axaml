@@ -58,7 +58,8 @@
               Classes="CommonBorderStyle"
               Margin="0 0 0 8">
         <StackPanel Spacing="8">
-          <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+          <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center"
+                IsEnabled="{Binding !IsProcess}">
             <TextBox Name="PathPreMessageTextBox" IsReadOnly="True"
                      Padding="6"
                      Height="36"
@@ -83,9 +84,26 @@
             <controls:SimpleIconButton Text="Сканировать"
                                        Icon="{iconPacks:Lucide Search, Width=18, Height=18}"
                                        Command="{Binding ScanFolderCommand}"
-                                       Classes="ModernButtonStyle"/>
-
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
+                                       Classes="ModernButtonStyle"
+                                       IsVisible="{Binding !IsProcess}"
+                                       Width="150"/>
+            <controls:SimpleIconButton Text="Прервать"
+                                       Icon="{iconPacks:Lucide SearchX, Width=18, Height=18}"
+                                       Command="{Binding StopScanFolderCommand}"
+                                       Classes="ModernButtonStyle"
+                                       IsVisible="{Binding IsProcess}"
+                                       Width="150"/>
+            
+            <TextBlock Text="Нейро?" VerticalAlignment="Center"/>
+            <ToggleSwitch OnContent="Да" OffContent="Нет"
+                          IsChecked="{Binding UseNeuro}"
+                          IsEnabled="{Binding !IsProcess}">
+              
+            </ToggleSwitch>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="8"
+                        IsVisible="{Binding !UseNeuro}"
+                        IsEnabled="{Binding !IsProcess}">
+              
               <RadioButton GroupName="First Group" Content="Точное совпадение"
                            IsChecked="{Binding UseExactMatch}"
                            Theme="{DynamicResource CardRadioButton}"

@@ -102,22 +102,29 @@ namespace Dedupligator.Services.DuplicateFinders
 
       var currentProgress = progress;
 
-      Parallel.ForEach(groupedFiles, options, group =>
+      try
       {
-        var groupFiles = group.ToList();
-        var groupDuplicates = FindDuplicateGroupsInFileGroup(
-          groupFiles, 
-          cancellationToken,
-          () =>
+        Parallel.ForEach(groupedFiles, options, group =>
           {
-            var processed = Interlocked.Increment(ref processedFilesCount);
-            var progressValue = startPhase + phaseWeight * (double)processed / totalFiles;
-            currentProgress?.Report(Math.Min(progressValue * 100, 100.0));
-          });
+            var groupFiles = group.ToList();
+            var groupDuplicates = FindDuplicateGroupsInFileGroup(
+              groupFiles,
+              cancellationToken,
+              () =>
+              {
+                var processed = Interlocked.Increment(ref processedFilesCount);
+                var progressValue = startPhase + phaseWeight * (double)processed / totalFiles;
+                currentProgress?.Report(Math.Min(progressValue * 100, 100.0));
+              });
 
-        foreach (var duplicates in groupDuplicates)
-          duplicateGroups.Add(duplicates);
-      });
+            foreach (var duplicates in groupDuplicates)
+              duplicateGroups.Add(duplicates);
+          });
+      }
+      catch (OperationCanceledException)
+      {
+        // ignore
+      }
       
       return [.. duplicateGroups];
     }
@@ -223,23 +230,30 @@ namespace Dedupligator.Services.DuplicateFinders
         MaxDegreeOfParallelism = maxParallelism
       };
 
-      Parallel.ForEach(allFiles, options, file =>
+      try
       {
-        try
-        {
-          var key = _strategy.GroupingKeySelector(file);
-          fileKeys[file] = key;
-        }
-        catch
-        {
-          fileKeys[file] = "error";
-        }
+        Parallel.ForEach(allFiles, options, file =>
+          {
+            try
+            {
+              var key = _strategy.GroupingKeySelector(file);
+              fileKeys[file] = key;
+            }
+            catch
+            {
+              fileKeys[file] = "error";
+            }
 
-        var current = Interlocked.Increment(ref processed);
-        var progressValue = startProgress + phaseWeight * (double)current / total;
-        progress?.Report(progressValue * 100);
+            var current = Interlocked.Increment(ref processed);
+            var progressValue = startProgress + phaseWeight * (double)current / total;
+            progress?.Report(progressValue * 100);
 
-      });
+          });
+      }
+      catch (OperationCanceledException)
+      {
+        // ignore
+      }
 
       return [.. fileKeys
       .GroupBy(kvp => kvp.Value, kvp => kvp.Key)
@@ -278,14 +292,21 @@ namespace Dedupligator.Services.DuplicateFinders
         MaxDegreeOfParallelism = maxParallelism,
       };
 
-      Parallel.ForEach(rootDirs, parallelOptions, dir =>
+      try
       {
-        var files = AddImageFilesFromDirectory(dir, enumerationOptions, cancellationToken);
-        allFiles.AddRange(files);
+        Parallel.ForEach(rootDirs, parallelOptions, dir =>
+          {
+            var files = AddImageFilesFromDirectory(dir, enumerationOptions, cancellationToken);
+            allFiles.AddRange(files);
 
-        var currentProgress = (double)Interlocked.Increment(ref processedDirs) / totalDirs;
-        progress?.Report(currentProgress * phaseWeight * 100);
-      });
+            var currentProgress = (double)Interlocked.Increment(ref processedDirs) / totalDirs;
+            progress?.Report(currentProgress * phaseWeight * 100);
+          });
+      }
+      catch (OperationCanceledException)
+      {
+        // ignore
+      }
 
       // Обрабатываем файлы из корневой директории
       cancellationToken.ThrowIfCancellationRequested();
