@@ -12,7 +12,7 @@
     Func<FileInfo, object> GroupingKeySelector { get; }
 
     /// <summary>
-    /// Требудется ли предварительная группировка файлов.
+    /// Требуется ли предварительная группировка файлов.
     /// </summary>
     bool RequiresPreGrouping { get; }
 
