@@ -23,6 +23,17 @@ jobs:
       uses: actions/setup-dotnet@v3
       with:
         dotnet-version: '8.0.x'
+
+    - name: Download runtime dependencies
+      run: |
+        # Создаем папку для зависимостей
+        New-Item -ItemType Directory -Path "dependencies" -Force
+        
+        # Скачиваем .NET Desktop Runtime
+        Invoke-WebRequest -Uri "https://dotnet.microsoft.com/en-us/download/dotnet/thank-you/runtime-desktop-8.0.0-windows-x64-installer" -OutFile "dependencies/dotnet-runtime.exe"
+        
+        # Скачиваем Visual C++ Redistributable
+        Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" -OutFile "dependencies/vcredist_x64.exe"
         
     - name: Generate automatic version
       id: version
@@ -66,6 +77,9 @@ jobs:
           /p:AssemblyVersion=$env:BASE_VERSION.0 `
           /p:FileVersion=$env:BASE_VERSION.0 `
           /p:InformationalVersion=$env:BUILD_VERSION
+
+        # Копируем зависимости в выходную папку
+        Copy-Item -Path "dependencies/*" -Destination "publish_output/" -Force
         
     - name: Create setup script
       run: |
@@ -104,10 +118,39 @@ jobs:
         Name: "{group}\{cm:UninstallProgram,Dedupligator}"; Filename: "{uninstallexe}"
         
         [Run]
+        ; Устанавливаем зависимости перед запуском приложения
+        Filename: "{app}\dotnet-runtime.exe"; Parameters: "/install /quiet /norestart"; StatusMsg: "Installing .NET Runtime..."; Flags: waituntilterminated
+        Filename: "{app}\vcredist_x64.exe"; Parameters: "/install /quiet /norestart"; StatusMsg: "Installing Visual C++ Redistributable..."; Flags: waituntilterminated
         Filename: "{app}\Dedupligator.exe"; Description: "Launch Application"; Flags: nowait postinstall skipifsilent
 
         [UninstallDelete]
         Type: filesandordirs; Name: "{localappdata}\Dedupligator"
+
+        [Code]
+        function InitializeSetup(): Boolean;
+        begin
+          // Проверяем, установлен ли .NET Runtime
+          if not IsDotNetDetected('net8.0', 0) then
+          begin
+            MsgBox('Dedupligator requires .NET 8.0 Desktop Runtime. It will be installed now.', mbInformation, MB_OK);
+          end;
+          Result := True;
+        end;
+        
+        function IsDotNetDetected(version: string; service: cardinal): boolean;
+        // Проверка наличия .NET Framework
+        var
+            key: string;
+            install, release: cardinal;
+            success: boolean;
+        begin
+            key := 'SOFTWARE\Microsoft\NET Framework Setup\NDP\' + version;
+            if version = 'net8.0' then
+                key := 'SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedhost\';
+            
+            success := RegQueryDWordValue(HKLM, key, 'Version', install);
+            Result := success and (install >= service);
+        end;
         "@
         
         $setupScript | Out-File -Encoding ASCII setup.iss
@@ -140,6 +183,11 @@ jobs:
       
           [Download Installer](https://github.com/${{ github.repository }}/releases/download/v${{ env.BUILD_VERSION }}/Dedupligator-Setup-${{ env.BUILD_VERSION }}.exe)
       
+          ### System Requirements
+          - Windows 10/11 x64
+          - .NET 8.0 Desktop Runtime (will be installed automatically)
+          - Visual C++ Redistributable (will be installed automatically)
+
           ### Installation
           1. Download the installer above
           2. Run the executable
