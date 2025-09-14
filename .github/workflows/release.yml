@@ -61,6 +61,7 @@ jobs:
           -r win-x64 `
           --self-contained `
           -o publish_output `
+          /p:AssemblyName=Dedupligator `
           /p:ApplicationIcon=../Dedupligator.App/Assets/logo.ico `
           /p:Version=$env:BASE_VERSION `
           /p:AssemblyVersion=$env:BASE_VERSION.0 `
@@ -95,8 +96,6 @@ jobs:
         
         [Files]
         Source: "publish_output\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
-        ; Переименовываем основной exe файл
-        Source: "publish_output\Dedupligator.App.exe"; DestDir: "{app}"; DestName: "Dedupligator.exe"; Flags: ignoreversion
         ; Копируем иконку отдельно для ярлыков
         Source: "publish_output\Assets\logo.ico"; DestDir: "{app}"; Flags: ignoreversion
         
