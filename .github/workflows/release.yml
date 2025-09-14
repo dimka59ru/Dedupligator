@@ -111,7 +111,7 @@ jobs:
         $setupScript | Out-File -Encoding ASCII setup.iss
         
     - name: Build installer
-      run: innosetup/ISCC.exe setup.iss
+      run: ./innosetup/ISCC.exe setup.iss
       
     - name: Create Git Tag
       run: |
