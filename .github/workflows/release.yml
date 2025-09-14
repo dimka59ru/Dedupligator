@@ -127,16 +127,6 @@ jobs:
         Type: filesandordirs; Name: "{localappdata}\Dedupligator"
 
         [Code]
-        function InitializeSetup(): Boolean;
-        begin
-          // Проверяем, установлен ли .NET Runtime
-          if not IsDotNetDetected('net8.0', 0) then
-          begin
-            MsgBox('Dedupligator requires .NET 8.0 Desktop Runtime. It will be installed now.', mbInformation, MB_OK);
-          end;
-          Result := True;
-        end;
-        
         function IsDotNetDetected(version: string; service: cardinal): boolean;
         // Проверка наличия .NET Framework
         var
@@ -147,9 +137,19 @@ jobs:
             key := 'SOFTWARE\Microsoft\NET Framework Setup\NDP\' + version;
             if version = 'net8.0' then
                 key := 'SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedhost\';
-            
+        
             success := RegQueryDWordValue(HKLM, key, 'Version', install);
             Result := success and (install >= service);
+        end;
+    
+        function InitializeSetup(): Boolean;
+        begin
+          // Проверяем, установлен ли .NET Runtime
+          if not IsDotNetDetected('net8.0', 0) then
+          begin
+            MsgBox('Dedupligator requires .NET 8.0 Desktop Runtime. It will be installed now.', mbInformation, MB_OK);
+          end;
+          Result := True;
         end;
         "@
         
