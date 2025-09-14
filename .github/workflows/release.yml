@@ -66,11 +66,6 @@ jobs:
           /p:FileVersion=$env:BASE_VERSION.0 `
           /p:InformationalVersion=$env:BUILD_VERSION
         
-    #- name: Download and install Inno Setup
-      # run: |
-      #   Invoke-WebRequest -Uri "https://jrsoftware.org/download.php/is.exe" -OutFile "InnoSetup.exe"
-      #   Start-Process -FilePath "InnoSetup.exe" -ArgumentList "/SILENT /NORESTART" -Wait
-        
     - name: Create setup script
       run: |
         $setupScript = @"
@@ -125,18 +120,18 @@ jobs:
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: "v$env:BUILD_VERSION"
-        name: "Dedupligator $env:BUILD_VERSION"
+        tag_name: "v${{ env.BUILD_VERSION }}"
+        name: "Dedupligator ${{ env.BUILD_VERSION }}"
         body: |
           ## Automatic Build
-          
-          **Version**: $env:BUILD_VERSION
-          **Base Version**: $env:BASE_VERSION
-          **Build Date**: $env:BUILD_TIMESTAMP
-          **Commit**: [$env:COMMIT_SHORT](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
-          
+      
+          **Version**: ${{ env.BUILD_VERSION }}
+          **Base Version**: ${{ env.BASE_VERSION }}
+          **Build Date**: ${{ env.BUILD_TIMESTAMP }}
+          **Commit**: [${{ env.COMMIT_SHORT }}](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
+      
           ### Changes
           This is an automated build from the main branch.
-          
-          [Download installer](Dedupligator-Setup-$env:BUILD_VERSION.exe)
+      
+          [Download installer](Dedupligator-Setup-${{ env.BUILD_VERSION }}.exe)
         files: output/*.exe
