@@ -16,7 +16,7 @@
         MinHeight="600" MinWidth="900"
         WindowStartupLocation="CenterScreen"
         FontFamily="Segoe UI, Inter, system-ui"
-        Icon="/Assets/avalonia-logo.ico">
+        Icon="/Assets/logo.ico">
 
   <Design.DataContext>
     <vm:MainWindowViewModel/>

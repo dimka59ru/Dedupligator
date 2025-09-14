@@ -61,6 +61,8 @@ jobs:
           -r win-x64 `
           --self-contained `
           -o publish_output `
+          /p:AssemblyName=Dedupligator `
+          /p:ApplicationIcon=Assets\logo.ico `
           /p:Version=$env:BASE_VERSION `
           /p:AssemblyVersion=$env:BASE_VERSION.0 `
           /p:FileVersion=$env:BASE_VERSION.0 `
@@ -87,19 +89,28 @@ jobs:
         ArchitecturesInstallIn64BitMode=x64
         VersionInfoVersion=$env:BASE_VERSION.0
         VersionInfoTextVersion=$env:BUILD_VERSION
+        SetupIconFile=publish_output\Assets\logo.ico
         
         [Languages]
         Name: "english"; MessagesFile: "compiler:Default.isl"
         
         [Files]
         Source: "publish_output\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
+        ; Переименовываем основной exe файл
+        Source: "publish_output\Dedupligator.App.exe"; DestDir: "{app}"; DestName: "Dedupligator.exe"; Flags: ignoreversion
+        ; Копируем иконку отдельно для ярлыков
+        Source: "publish_output\Assets\logo.ico"; DestDir: "{app}"; Flags: ignoreversion
         
         [Icons]
-        Name: "{group}\Dedupligator"; Filename: "{app}\Dedupligator.exe"
+        Name: "{group}\Dedupligator"; Filename: "{app}\Dedupligator.exe"; IconFilename: "{app}\logo.ico"
         Name: "{autodesktop}\Dedupligator"; Filename: "{app}\Dedupligator.exe"
+        Name: "{group}\{cm:UninstallProgram,Dedupligator}"; Filename: "{uninstallexe}"
         
         [Run]
         Filename: "{app}\Dedupligator.exe"; Description: "Launch Application"; Flags: nowait postinstall skipifsilent
+
+        [UninstallDelete]
+        Type: filesandordirs; Name: "{localappdata}\Dedupligator"
         "@
         
         $setupScript | Out-File -Encoding ASCII setup.iss
