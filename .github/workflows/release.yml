@@ -66,11 +66,7 @@ jobs:
           /p:FileVersion=$env:BASE_VERSION.0 `
           /p:InformationalVersion=$env:BUILD_VERSION
         
-    - name: Download and install Inno Setup
-      uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
-      with:
-        path: src/setup.iss
-        options: /O+
+    #- name: Download and install Inno Setup
       # run: |
       #   Invoke-WebRequest -Uri "https://jrsoftware.org/download.php/is.exe" -OutFile "InnoSetup.exe"
       #   Start-Process -FilePath "InnoSetup.exe" -ArgumentList "/SILENT /NORESTART" -Wait
@@ -114,8 +110,10 @@ jobs:
         $setupScript | Out-File -Encoding ASCII setup.iss
         
     - name: Build installer
-      run: |
-        "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" setup.iss
+      uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
+      with:
+        path: src/setup.iss
+        options: /O+
       
     - name: Create Git Tag
       run: |
