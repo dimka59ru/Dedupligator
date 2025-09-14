@@ -61,7 +61,7 @@ jobs:
           -r win-x64 `
           --self-contained `
           -o publish_output `
-          /p:ApplicationIcon=Assets\logo.ico `
+          /p:ApplicationIcon=../Dedupligator.App/Assets/logo.ico `
           /p:Version=$env:BASE_VERSION `
           /p:AssemblyVersion=$env:BASE_VERSION.0 `
           /p:FileVersion=$env:BASE_VERSION.0 `
