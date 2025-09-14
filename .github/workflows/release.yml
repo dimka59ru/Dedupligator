@@ -66,14 +66,23 @@ jobs:
           /p:FileVersion=$env:BASE_VERSION.0 `
           /p:InformationalVersion=$env:BUILD_VERSION
         
-    - name: Download Inno Setup
+    - name: Download and install Inno Setup
       run: |
-        mkdir -p innosetup
+        # Скачиваем Inno Setup
         curl -L "https://files.jrsoftware.org/is/6/innosetup-6.5.3.exe" -o innosetup.exe
-        7z x innosetup.exe -oinnosetup -y -bso0
-
-    - name: Show ISCC.exe location
-      run: dir innosetup\ISCC.exe
+    
+        # Устанавливаем в папку innosetup
+        mkdir innosetup
+        Start-Process -Wait -FilePath "innosetup.exe" -ArgumentList "/VERYSILENT", "/DIR=innosetup", "/SUPPRESSMSGBOXES", "/NORESTART"
+    
+        # Проверяем что установилось
+        if (Test-Path "innosetup/ISCC.exe") {
+          echo "Inno Setup installed successfully"
+          echo "ISCC_PATH=innosetup/ISCC.exe" >> $env:GITHUB_ENV
+        } else {
+          echo "Error: Inno Setup not found after installation"
+          exit 1
+        }
         
     - name: Create setup script
       run: |
@@ -114,7 +123,9 @@ jobs:
         $setupScript | Out-File -Encoding ASCII setup.iss
         
     - name: Build installer
-      run: ./innosetup/ISCC.exe setup.iss
+      run: |
+        # Используем полный путь к ISCC.exe
+        & "$env:ISCC_PATH" setup.iss
       
     - name: Create Git Tag
       run: |
