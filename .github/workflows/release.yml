@@ -112,7 +112,7 @@ jobs:
     - name: Build installer
       uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
       with:
-        path: src/setup.iss
+        path: setup.iss
         options: /O+
       
     - name: Create Git Tag
