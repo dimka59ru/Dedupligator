@@ -67,9 +67,13 @@ jobs:
           /p:InformationalVersion=$env:BUILD_VERSION
         
     - name: Download and install Inno Setup
-      run: |
-        Invoke-WebRequest -Uri "https://jrsoftware.org/download.php/is.exe" -OutFile "InnoSetup.exe"
-        Start-Process -FilePath "InnoSetup.exe" -ArgumentList "/SILENT /NORESTART" -Wait
+      uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
+      with:
+        path: src/setup.iss
+        options: /O+
+      # run: |
+      #   Invoke-WebRequest -Uri "https://jrsoftware.org/download.php/is.exe" -OutFile "InnoSetup.exe"
+      #   Start-Process -FilePath "InnoSetup.exe" -ArgumentList "/SILENT /NORESTART" -Wait
         
     - name: Create setup script
       run: |
