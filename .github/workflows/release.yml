@@ -71,6 +71,9 @@ jobs:
         mkdir -p innosetup
         curl -L "https://files.jrsoftware.org/is/6/innosetup-6.5.3.exe" -o innosetup.exe
         7z x innosetup.exe -oinnosetup -y -bso0
+
+    - name: Show ISCC.exe location
+      run: dir innosetup\ISCC.exe
         
     - name: Create setup script
       run: |
