@@ -129,7 +129,7 @@
                       Minimum="0.75"
                       TickFrequency="0.005"
                       TickPlacement="Outside"
-                      Value="{Binding Threshold}" />
+                      Value="{Binding SimilarityThreshold}" />
               <TextBlock Text="{Binding #slider.Value, StringFormat={}{0:0.000}}" 
                          HorizontalAlignment="Center" VerticalAlignment="Center"/>
             </StackPanel>
