@@ -8,6 +8,7 @@ using Dedupligator.App.Models;
 using Dedupligator.Services;
 using Dedupligator.Services.Cache;
 using Dedupligator.Services.DuplicateFinders;
+using Dedupligator.Services.Factories;
 using System;
 using System.Collections.Specialized;
 using System.ComponentModel;
@@ -19,13 +20,14 @@ using System.Threading.Tasks;
 
 namespace Dedupligator.App.ViewModels
 {
-  public partial class MainWindowViewModel : ViewModelBase
+  public partial class MainWindowViewModel : ViewModelBase, IDisposable
   {
     private const int PreviewImageMaxWidth = 250;
-
+    private bool _disposed = false;
     private readonly AsyncDebouncer _debouncer = new(500);
+    private readonly IDuplicateMatchStrategyFactory _strategyFactory;
 
-    private CancellationTokenSource? _cancellationTokenSource;
+    private CancellationTokenSource? _findDuplicatesCancellationTokenSource;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ScanFolderCommand))]
@@ -54,8 +56,16 @@ namespace Dedupligator.App.ViewModels
     [ObservableProperty]
     private bool _useExactMatch = true;
 
-    [ObservableProperty]
     private Bitmap? _selectedImage;
+    public Bitmap? SelectedImage
+    {
+      get => _selectedImage;
+      set
+      {
+        _selectedImage?.Dispose();
+        SetProperty(ref _selectedImage, value);
+      }
+    }
 
     [ObservableProperty]
     private float _similarityThreshold = 0.85f;
@@ -89,8 +99,8 @@ namespace Dedupligator.App.ViewModels
           Progress = p;
         });
 
-        _cancellationTokenSource = new CancellationTokenSource();
-        var duplicateGroups = await Task.Run(() => finder.FindDuplicates(SelectedFolderPath, progress, _cancellationTokenSource.Token));
+        _findDuplicatesCancellationTokenSource = new CancellationTokenSource();
+        var duplicateGroups = await Task.Run(() => finder.FindDuplicates(SelectedFolderPath, progress, _findDuplicatesCancellationTokenSource.Token));
 
         var groupsForUi = duplicateGroups.Select(group => new DuplicateGroup(
             GroupName: group[0].Name,
@@ -106,7 +116,7 @@ namespace Dedupligator.App.ViewModels
       finally
       {
         IsProcess = false;
-        _cancellationTokenSource?.Dispose();
+        _findDuplicatesCancellationTokenSource?.Dispose();
 
         if (strategy is ICachedDuplicateMatchStrategy cachedStrategy)
         {
@@ -118,7 +128,7 @@ namespace Dedupligator.App.ViewModels
     [RelayCommand]
     private void StopScanFolder()
     {
-      _cancellationTokenSource?.Cancel();
+      _findDuplicatesCancellationTokenSource?.Cancel();
     }
 
     private bool CanExecuteRemoveFiles => FilePreviews.Any(x => x.MarkedForDeletion);
@@ -158,12 +168,12 @@ namespace Dedupligator.App.ViewModels
     private IDuplicateMatchStrategy CreateStrategy()
     {
       if (UseNeuro)
-        return new NeuralSimilarityStrategy(SimilarityThreshold);
+        return _strategyFactory.CreateNeuralSimilarityStrategy(SimilarityThreshold);
 
       if (UseExactMatch)
-        return new ExactMatchStrategy();
+        return _strategyFactory.CreateExactMatchStrategy();
 
-      return new SimilarImageStrategy();
+      return _strategyFactory.CreateSimilarImageStrategy();
     }
 
     async partial void OnSelectedFileGroupChanged(DuplicateGroup? oldValue, DuplicateGroup? newValue)
@@ -182,10 +192,11 @@ namespace Dedupligator.App.ViewModels
 
       await _debouncer.DebounceAsync(async () =>
       {
-        foreach (var preview in FilePreviews.ToList())
+        var options = new ParallelOptions { MaxDegreeOfParallelism = 4 };
+        await Parallel.ForEachAsync(FilePreviews.ToList(), options, async (preview, ct) =>
         {
           await preview.LoadImageAsync(PreviewImageMaxWidth);
-        }
+        });
       });
     }
 
@@ -267,8 +278,44 @@ namespace Dedupligator.App.ViewModels
       }
     }
 
-    public MainWindowViewModel()
+    public void Dispose()
     {
+      Dispose(true);
+      GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+      if (!_disposed)
+      {
+        if (disposing)
+        {
+          // Освобождаем управляемые ресурсы
+          DuplicateGroups.CollectionChanged -= DuplicateGroups_CollectionChanged;
+          FilePreviews.CollectionChanged -= FilePreviews_CollectionChanged;
+
+          // Отписываемся от всех элементов
+          foreach (var preview in FilePreviews)
+          {
+            preview.PropertyChanged -= ImagePreview_PropertyChanged;
+          }
+
+          _findDuplicatesCancellationTokenSource?.Dispose();
+          SelectedImage?.Dispose();
+        }
+
+        _disposed = true;
+      }
+    }
+
+    ~MainWindowViewModel()
+    {
+      Dispose(false);
+    }
+
+    public MainWindowViewModel(IDuplicateMatchStrategyFactory strategyFactory)
+    {
+      _strategyFactory = strategyFactory ?? throw new ArgumentNullException(nameof(strategyFactory));
       DuplicateGroups.CollectionChanged += DuplicateGroups_CollectionChanged;
       FilePreviews.CollectionChanged+= FilePreviews_CollectionChanged;
     }
