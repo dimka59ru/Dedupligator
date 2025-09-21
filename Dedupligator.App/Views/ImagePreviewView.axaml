@@ -9,10 +9,15 @@
 
   <Border Margin="5" Padding="8" Background="{DynamicResource SemiGrey1Color}"
                             CornerRadius="6" Width="250">
+    <Border.ContextMenu>
+      <ContextMenu>
+        <MenuItem Header="Oткрыть содержащую папку"/>
+      </ContextMenu>
+    </Border.ContextMenu>
     <StackPanel>
       <Image Source="{Binding ImagePreview}"
-           Height="200" Stretch="Uniform"
-           ToolTip.Tip="{Binding FilePath}"/>
+         Height="200" Stretch="Uniform"
+             ToolTip.Tip="{Binding FilePath}"/>
 
       <TextBlock Text="{Binding FileName}"
              TextWrapping="Wrap" Margin="0 5 0 2"/>
