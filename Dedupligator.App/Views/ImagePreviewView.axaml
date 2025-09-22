@@ -11,7 +11,7 @@
                             CornerRadius="6" Width="250">
     <Border.ContextMenu>
       <ContextMenu>
-        <MenuItem Header="Oткрыть содержащую папку"/>
+        <MenuItem Header="Oткрыть содержащую папку" Command="{Binding OpenContainingFolderCommand}"/>
       </ContextMenu>
     </Border.ContextMenu>
     <StackPanel>
