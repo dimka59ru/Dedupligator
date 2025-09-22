@@ -112,11 +112,15 @@ jobs:
         
         $setupScript | Out-File -Encoding ASCII setup.iss
         
+    - name: Install Inno Setup
+      run: |
+        # Устанавливаем Inno Setup через Chocolatey
+        choco install innosetup -y --no-progress
+    
     - name: Build installer
-      uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
-      with:
-        path: setup.iss
-        options: /O+
+      run: |
+        # Используем полный путь к ISCC
+        & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" setup.iss /O+ /Qp
       
     - name: Create Git Tag
       run: |
