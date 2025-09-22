@@ -2,9 +2,14 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Dedupligator.App.ViewModels;
+using Dedupligator.Services.DuplicateFinders;
 using Dedupligator.Services.Factories;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Serilog;
 using System;
+using System.IO;
+using System.Threading.Tasks;
 
 namespace Dedupligator.App
 {
@@ -20,7 +25,8 @@ namespace Dedupligator.App
 
     public override void OnFrameworkInitializationCompleted()
     {
-      // Register all the services needed for the application to run
+      ConfigureLogger();
+
       var collection = new ServiceCollection();
       collection.AddCommonServices();
 
@@ -30,6 +36,7 @@ namespace Dedupligator.App
       _scope = _serviceProvider.CreateScope();
       var vm = _scope.ServiceProvider.GetRequiredService<MainWindowViewModel>();
 
+      Log.Information("Application starting...");
       if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
       {
         desktop.MainWindow = new MainWindow
@@ -38,6 +45,8 @@ namespace Dedupligator.App
         };
 
         desktop.MainWindow.Closed += MainWindow_Closed;
+        desktop.Startup += OnStartup;
+        desktop.Exit += OnExit;
       }
 
       base.OnFrameworkInitializationCompleted();
@@ -48,19 +57,69 @@ namespace Dedupligator.App
       _scope?.Dispose();
     }
 
-    private void OnExit(object sender, ControlledApplicationLifetimeExitEventArgs e)
+    private void OnStartup(object? sender, ControlledApplicationLifetimeStartupEventArgs e)
+    {
+      Log.Information("Application started successfully");
+    }
+
+    private void OnExit(object? sender, ControlledApplicationLifetimeExitEventArgs e)
     {
       _scope?.Dispose();
       (_serviceProvider as IDisposable)?.Dispose();
+
+      Log.Information("Application shutting down");
+      Log.CloseAndFlush();
+    }
+
+    private static void ConfigureLogger()
+    {
+      Log.Logger = new LoggerConfiguration()
+          .MinimumLevel.Debug()
+          .WriteTo.Console()
+          .WriteTo.File(
+            Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "Dedupligator",
+                "logs",
+                "app-.log"
+            ),
+            rollingInterval: RollingInterval.Day,
+            retainedFileCountLimit: 7,
+            outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss} [{Level}] {Message}{NewLine}{Exception}"
+          )
+          .CreateLogger();
+
+      ConfigureGlobalExceptionHandling();
+    }
+
+    private static void ConfigureGlobalExceptionHandling()
+    {
+      AppDomain.CurrentDomain.UnhandledException += (s, e) =>
+      {
+        var ex = e.ExceptionObject as Exception;
+        Log.Fatal(ex, "Unhandled exception occurred");
+      };
+
+      TaskScheduler.UnobservedTaskException += (s, e) =>
+      {
+        Log.Error(e.Exception, "Unobserved task exception");
+        e.SetObserved();
+      };
     }
   }
 
   public static class ServiceCollectionExtensions
   {
-    public static void AddCommonServices(this IServiceCollection collection)
+    public static void AddCommonServices(this IServiceCollection services)
     {
-      collection.AddSingleton<IDuplicateMatchStrategyFactory, DuplicateMatchStrategyFactory>();
-      collection.AddScoped<MainWindowViewModel>();
+      services.AddLogging(builder =>
+      {
+        builder.AddSerilog();
+        builder.SetMinimumLevel(LogLevel.Debug);
+      });
+      services.AddTransient<DuplicateFinder>();
+      services.AddSingleton<IDuplicateMatchStrategyFactory, DuplicateMatchStrategyFactory>();
+      services.AddScoped<MainWindowViewModel>();
     }
   }
 }
