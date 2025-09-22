@@ -3,12 +3,16 @@ using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Dedupligator.App.Helpers;
+using Microsoft.Extensions.Logging;
+using System;
 using System.Threading.Tasks;
 
 namespace Dedupligator.App.ViewModels
 {
   public partial class ImagePreviewViewModel : ViewModelBase
   {
+    private readonly ILogger<ImagePreviewViewModel> _logger;
+
     [ObservableProperty]
     private Bitmap? _imagePreview;
 
@@ -26,6 +30,8 @@ namespace Dedupligator.App.ViewModels
     {
       try
       {
+        _logger.LogDebug("Загрузка изображения: {FileName}", FileName);
+
         var dimensions = await ImageHelper.GetImageDimensionsAsync(FilePath);
         Resolution = dimensions != (0, 0) ? $"{dimensions.Width}×{dimensions.Height}" : "?×?";
 
@@ -33,32 +39,47 @@ namespace Dedupligator.App.ViewModels
 
         if (imageInfo.Bitmap != null)
         {
+          _logger.LogDebug("Изображение загружено: {FileName}, размер: {Width}x{Height}",
+              FileName, imageInfo.Bitmap.Size.Width, imageInfo.Bitmap.Size.Height);
           ImagePreview = imageInfo.Bitmap;
         }
       }
-      catch
+      catch (Exception ex)
       {
-        Resolution = "Loading error";
+        _logger.LogError(ex, "Ошибка загрузки изображения: {FileName}", FileName);
+        Resolution = "Ошибка загрузки";
       }
     }
 
     [RelayCommand]
     private async Task OpenContainingFolder()
     {
-      await FileExplorerHelper.OpenFolderWithFileAsync(FilePath, async error => await Task.CompletedTask);
+      _logger.LogDebug("Открытие папки с файлом: {FileName}", FileName);
+
+      await FileExplorerHelper.OpenFolderWithFileAsync(
+        FilePath,
+        async error =>
+        {
+          _logger.LogWarning("Ошибка открытия папки: {ErrorMessage}", error);
+          await Task.CompletedTask;
+        });
     }
 
-    public ImagePreviewViewModel(string fileName, string filePath, string fileSize)
+    public ImagePreviewViewModel(string fileName, string filePath, string fileSize, ILogger<ImagePreviewViewModel> logger)
     {
       System.ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
       System.ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
       System.ArgumentException.ThrowIfNullOrWhiteSpace(fileSize);
+
+      _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
       ImagePreview = ImageHelper.CreatePlaceholderWithGraphics(100, 100, Colors.LightGray);
       Resolution = "Loading...";
       FileName = fileName;
       FilePath = filePath;
       FileSize = fileSize;
+
+      _logger.LogDebug("Создан ImagePreviewViewModel для файла: {FileName}", fileName);
     }
   }
 }

@@ -9,6 +9,7 @@ using Dedupligator.Services;
 using Dedupligator.Services.Cache;
 using Dedupligator.Services.DuplicateFinders;
 using Dedupligator.Services.Factories;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Specialized;
 using System.ComponentModel;
@@ -26,6 +27,9 @@ namespace Dedupligator.App.ViewModels
     private bool _disposed = false;
     private readonly AsyncDebouncer _debouncer = new(500);
     private readonly IDuplicateMatchStrategyFactory _strategyFactory;
+    private readonly ILogger<MainWindowViewModel> _logger;
+    private readonly ILoggerFactory _loggerFactory;
+    private readonly DuplicateFinder _duplicateFinder;
 
     private CancellationTokenSource? _findDuplicatesCancellationTokenSource;
 
@@ -72,7 +76,7 @@ namespace Dedupligator.App.ViewModels
 
     public int TotalFiles => DuplicateGroups.Sum(x => x.FileCount);
     public int TotalGroup => DuplicateGroups.Count;
-    public string? SelectedFolderPath => SelectedFolder?.GetSafeLocalPath();
+    public string? SelectedFolderPath => SelectedFolder?.GetSafeLocalPath(_logger);
     public static string AppVersion { get; } = $"v{GetAppVersion()}";
 
 
@@ -85,7 +89,7 @@ namespace Dedupligator.App.ViewModels
         return;
 
       var strategy = CreateStrategy();
-      var finder = new DuplicateFinder(strategy);
+      _duplicateFinder.SetStrategy(strategy);
 
       IsProcess = true;
       DuplicateGroups.Clear();
@@ -100,7 +104,11 @@ namespace Dedupligator.App.ViewModels
         });
 
         _findDuplicatesCancellationTokenSource = new CancellationTokenSource();
-        var duplicateGroups = await Task.Run(() => finder.FindDuplicates(SelectedFolderPath, progress, _findDuplicatesCancellationTokenSource.Token));
+        var duplicateGroups = await Task.Run(() =>
+          _duplicateFinder.FindDuplicates(
+            SelectedFolderPath, 
+            progress, 
+            _findDuplicatesCancellationTokenSource.Token));
 
         var groupsForUi = duplicateGroups.Select(group => new DuplicateGroup(
             GroupName: group[0].Name,
@@ -185,7 +193,8 @@ namespace Dedupligator.App.ViewModels
       (
         file.Name,
         file.FullName,
-        file.Length.ToFileSizeString()
+        file.Length.ToFileSizeString(),
+        _loggerFactory.CreateLogger<ImagePreviewViewModel>()
       )).ToList();
 
       FilePreviews.ReplaceWith(previews);
@@ -313,9 +322,17 @@ namespace Dedupligator.App.ViewModels
       Dispose(false);
     }
 
-    public MainWindowViewModel(IDuplicateMatchStrategyFactory strategyFactory)
+    public MainWindowViewModel(
+      ILogger<MainWindowViewModel> logger,
+      IDuplicateMatchStrategyFactory strategyFactory,
+      DuplicateFinder duplicateFinder,
+      ILoggerFactory loggerFactory)
     {
+      _logger = logger ?? throw new ArgumentNullException(nameof(logger));
       _strategyFactory = strategyFactory ?? throw new ArgumentNullException(nameof(strategyFactory));
+      _duplicateFinder = duplicateFinder ?? throw new ArgumentNullException(nameof(duplicateFinder));
+      _loggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));
+
       DuplicateGroups.CollectionChanged += DuplicateGroups_CollectionChanged;
       FilePreviews.CollectionChanged+= FilePreviews_CollectionChanged;
     }

@@ -1,20 +1,31 @@
 ﻿using Dedupligator.Common.Helpers;
+using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
-using System.Diagnostics;
 
 namespace Dedupligator.Services.DuplicateFinders
 {
   /// <summary>
   /// Поиск дубликатов файлов.
   /// </summary>
-  public class DuplicateFinder(IDuplicateMatchStrategy strategy)
+  public class DuplicateFinder
   {
     private readonly int _maxParallelism = Environment.ProcessorCount;
 
     /// <summary>
+    /// Логгер.
+    /// </summary>
+    private readonly ILogger<DuplicateFinder> _logger;
+
+    /// <summary>
     /// Стратегия поиска дубликатов файлов.
     /// </summary>
-    private readonly IDuplicateMatchStrategy _strategy = strategy ?? throw new ArgumentNullException(nameof(strategy));
+    private IDuplicateMatchStrategy? _strategy;
+
+    public void SetStrategy(IDuplicateMatchStrategy strategy)
+    {
+      _strategy = strategy ?? throw new ArgumentNullException(nameof(strategy));
+      _logger.LogDebug("Strategy set to: {StrategyType}", strategy.GetType().Name);
+    }
 
     /// <summary>
     /// Находит дубликаты файлов в указанной директории и её поддиректориях.
@@ -24,6 +35,13 @@ namespace Dedupligator.Services.DuplicateFinders
     /// <returns>Список групп дубликатов.</returns>
     public List<List<FileInfo>> FindDuplicates(string directoryPath, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
     {
+      if (_strategy == null)
+      {
+        throw new InvalidOperationException("Strategy not set. Call SetStrategy first.");
+      }
+
+      _logger.LogInformation("Начало поиска дубликатов в директории: {DirectoryPath}", directoryPath);
+
       const double SCAN_PHASE_WEIGHT = 0.01;    // 0% → 1%
       const double GROUP_PHASE_WEIGHT = 0.49;   // 1% → 50%
       const double COMPARE_PHASE_WEIGHT = 0.5; // 50% → 100%
@@ -34,21 +52,30 @@ namespace Dedupligator.Services.DuplicateFinders
       try
       {
         //  1. Сканирование файлов
+        _logger.LogDebug("Фаза 1: Сканирование файлов");
         allFiles = GetImageFiles(normalizedPath, progress, SCAN_PHASE_WEIGHT, _maxParallelism, cancellationToken);
+        _logger.LogInformation("Найдено файлов: {FileCount}", allFiles.Count);
       }
       catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
       {
-        Console.WriteLine("Сканирование файлов было отменено");
+        _logger.LogWarning("Сканирование файлов было отменено");
+        return [];
+      }
+      catch (Exception ex)
+      {
+        _logger.LogError(ex, "Ошибка при сканировании файлов в директории: {DirectoryPath}", directoryPath);
         throw;
       }
 
       if (allFiles.Count == 0)
       {
         progress?.Report(100.0);
+        _logger.LogInformation("Файлы не найдены в директории: {DirectoryPath}", directoryPath);
         return [];
       }
 
       // 2. Группировка (с вычислением ключей)
+      _logger.LogDebug("Фаза 2: Группировка файлов");
       var groupedFiles = GetGroupedFiles(
           allFiles,
           progress,
@@ -58,13 +85,17 @@ namespace Dedupligator.Services.DuplicateFinders
           cancellationToken);
 
       var totalCompareFiles = groupedFiles.Sum(g => g.Count());
+      _logger.LogDebug("Файлов для сравнения: {CompareFileCount}", totalCompareFiles);
+
       if (totalCompareFiles == 0)
       {
         progress?.Report(100.0);
+        _logger.LogInformation("Нет файлов для сравнения после группировки");
         return [];
       }
 
       // 3. Поиск дубликатов в группах
+      _logger.LogDebug("Фаза 3: Поиск дубликатов в группах");
       var duplicateGroups = FindDuplicatesInGroupsWithThrottling(
           groupedFiles,
           progress,
@@ -72,6 +103,10 @@ namespace Dedupligator.Services.DuplicateFinders
           COMPARE_PHASE_WEIGHT,
           _maxParallelism,
           cancellationToken);
+
+      _logger.LogInformation("Найдено групп дубликатов: {DuplicateGroupCount}", duplicateGroups.Count);
+      _logger.LogInformation("Общее количество дубликатов: {TotalDuplicates}",
+          duplicateGroups.Sum(g => g.Count));
 
       return duplicateGroups;
     }
@@ -87,6 +122,9 @@ namespace Dedupligator.Services.DuplicateFinders
       var duplicateGroups = new ConcurrentBag<List<FileInfo>>();
       var totalFiles = groupedFiles.Sum(x => x.Count());
       long processedFilesCount = 0;
+
+      _logger.LogDebug("Начало сравнения {TotalFiles} файлов в {GroupCount} группах",
+          totalFiles, groupedFiles.Count());
 
       if (totalFiles == 0)
       {
@@ -107,6 +145,8 @@ namespace Dedupligator.Services.DuplicateFinders
         Parallel.ForEach(groupedFiles, options, group =>
           {
             var groupFiles = group.ToList();
+            _logger.LogTrace("Обработка группы из {GroupSize} файлов", groupFiles.Count);
+
             var groupDuplicates = FindDuplicateGroupsInFileGroup(
               groupFiles,
               cancellationToken,
@@ -118,14 +158,21 @@ namespace Dedupligator.Services.DuplicateFinders
               });
 
             foreach (var duplicates in groupDuplicates)
+            {
               duplicateGroups.Add(duplicates);
+            }
           });
       }
       catch (OperationCanceledException)
       {
-        // ignore
+        _logger.LogWarning("Сравнение файлов было отменено");
       }
-      
+      catch (Exception ex)
+      {
+        _logger.LogError(ex, "Ошибка при сравнении файлов в группах");
+        throw;
+      }
+
       return [.. duplicateGroups];
     }
 
@@ -133,6 +180,8 @@ namespace Dedupligator.Services.DuplicateFinders
     {
       var duplicateGroups = new List<List<FileInfo>>();
       var processedFiles = new HashSet<string>();
+
+      _logger.LogTrace("Поиск дубликатов в группе из {FileCount} файлов", files.Count);
 
       for (int i = 0; i < files.Count; i++)
       {
@@ -156,6 +205,8 @@ namespace Dedupligator.Services.DuplicateFinders
           {
             currentGroup.Add(otherFile);
             processedFiles.Add(otherFile.FullName);
+
+            _logger.LogTrace("Найден дубликат: {File1} == {File2}", currentFile.Name, otherFile.Name);
           }
         }
 
@@ -179,24 +230,18 @@ namespace Dedupligator.Services.DuplicateFinders
     {
       try
       {
-        return _strategy.AreDuplicates(file1, file2);
+        var areDuplicates = _strategy!.AreDuplicates(file1, file2);
+        if (areDuplicates)
+        {
+          _logger.LogTrace("Файлы являются дубликатами: {File1} == {File2}", file1.Name, file2.Name);
+        }
+        return areDuplicates;
       }
       catch (Exception ex)
       {
-        LogComparisonError(file1, file2, ex);
+        _logger.LogError(ex, "Ошибка сравнения файлов {File1} и {File2}", file1.Name, file2.Name);
         return false;
       }
-    }
-
-    /// <summary>
-    /// Логирует ошибку сравнения файлов.
-    /// </summary>
-    /// <param name="file1">Первый файл.</param>
-    /// <param name="file2">Второй файл.</param>
-    /// <param name="ex">Исключение.</param>
-    private static void LogComparisonError(FileInfo file1, FileInfo file2, Exception ex)
-    {
-      Console.WriteLine($"Ошибка сравнения {file1.Name} и {file2.Name}: {ex.Message}");
     }
 
     /// <summary>
@@ -214,9 +259,12 @@ namespace Dedupligator.Services.DuplicateFinders
       if (allFiles.Count == 0)
         return [];
 
-      if (!_strategy.RequiresPreGrouping)
+      _logger.LogDebug("Группировка {FileCount} файлов", allFiles.Count);
+
+      if (!_strategy!.RequiresPreGrouping)
       {
         progress?.Report((startProgress + phaseWeight) * 100);
+        _logger.LogDebug("Стратегия не требует предварительной группировки");
         return [allFiles.GroupBy(_ => (object)"ungrouped").First()];
       }
 
@@ -238,10 +286,12 @@ namespace Dedupligator.Services.DuplicateFinders
             {
               var key = _strategy.GroupingKeySelector(file);
               fileKeys[file] = key;
+              _logger.LogTrace("Вычислен ключ для файла {FileName}: {Key}", file.Name, key);
             }
-            catch
+            catch (Exception ex)
             {
               fileKeys[file] = "error";
+              _logger.LogError(ex, "Ошибка вычисления ключа для файла {FileName}", file.Name);
             }
 
             var current = Interlocked.Increment(ref processed);
@@ -252,12 +302,17 @@ namespace Dedupligator.Services.DuplicateFinders
       }
       catch (OperationCanceledException)
       {
-        // ignore
+        _logger.LogWarning("Группировка файлов была отменена");
       }
 
-      return [.. fileKeys
-      .GroupBy(kvp => kvp.Value, kvp => kvp.Key)
-      .Where(g => g.Count() > 1)];
+      var result = fileKeys
+         .GroupBy(kvp => kvp.Value, kvp => kvp.Key)
+         .Where(g => g.Count() > 1)
+         .ToList();
+
+      _logger.LogDebug("Создано {GroupCount} групп после фильтрации", result.Count);
+
+      return result;
     }
 
     /// <summary>
@@ -265,13 +320,15 @@ namespace Dedupligator.Services.DuplicateFinders
     /// </summary>
     /// <param name="directoryPath">Путь к директории.</param>
     /// <returns>Список файлов изображений.</returns>
-    private static List<FileInfo> GetImageFiles(
+    private List<FileInfo> GetImageFiles(
       string directoryPath, 
       IProgress<double>? progress, 
       double phaseWeight, 
       int maxParallelism = 4, 
       CancellationToken cancellationToken = default)
     {
+      _logger.LogDebug("Сканирование изображений в директории: {DirectoryPath}", directoryPath);
+
       var allFiles = new ConcurrentBag<FileInfo>();
 
       var rootDirs = Directory.GetDirectories(directoryPath);
@@ -298,6 +355,7 @@ namespace Dedupligator.Services.DuplicateFinders
           {
             var files = AddImageFilesFromDirectory(dir, enumerationOptions, cancellationToken);
             allFiles.AddRange(files);
+            _logger.LogTrace("Найдено {FileCount} файлов в директории {Directory}", files.Count, dir);
 
             var currentProgress = (double)Interlocked.Increment(ref processedDirs) / totalDirs;
             progress?.Report(currentProgress * phaseWeight * 100);
@@ -305,7 +363,7 @@ namespace Dedupligator.Services.DuplicateFinders
       }
       catch (OperationCanceledException)
       {
-        // ignore
+        _logger.LogWarning("Сканирование директорий было отменено");
       }
 
       // Обрабатываем файлы из корневой директории
@@ -319,14 +377,16 @@ namespace Dedupligator.Services.DuplicateFinders
 
       var rootFiles = AddImageFilesFromDirectory(directoryPath, rootOptions, cancellationToken);
       allFiles.AddRange(rootFiles);
+      _logger.LogTrace("Найдено {FileCount} файлов в директории {Directory}", rootFiles.Count, directoryPath);
 
       var currentProgress2 = (double)Interlocked.Increment(ref processedDirs) / totalDirs;
       progress?.Report(currentProgress2 * phaseWeight * 100);
 
+      _logger.LogDebug("Всего найдено файлов: {TotalFiles}", allFiles.Count);
       return [.. allFiles];
     }
 
-    private static List<FileInfo> AddImageFilesFromDirectory(string directoryPath, EnumerationOptions options, CancellationToken cancellationToken)
+    private List<FileInfo> AddImageFilesFromDirectory(string directoryPath, EnumerationOptions options, CancellationToken cancellationToken)
     {
       cancellationToken.ThrowIfCancellationRequested();
 
@@ -340,14 +400,14 @@ namespace Dedupligator.Services.DuplicateFinders
               return new FileInfo(filePath);
             })];
       }
-      catch (UnauthorizedAccessException)
+      catch (UnauthorizedAccessException ex)
       {
-        // Пропускаем папки без доступа
+        _logger.LogWarning("Нет доступа к директории {Directory}: {Message}", directoryPath, ex.Message);
         return [];
       }
-      catch (IOException)
+      catch (IOException ex)
       {
-        // Пропускаем папки с ошибками ввода-вывода
+        _logger.LogWarning("Ошибка доступа к директории {Directory}: {Message}", directoryPath, ex.Message);
         return [];
       }
     }
@@ -362,6 +422,11 @@ namespace Dedupligator.Services.DuplicateFinders
       string[] imageExtensions = { ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp" };
       string extension = Path.GetExtension(filePath).ToLower();
       return imageExtensions.Contains(extension);
+    }
+
+    public DuplicateFinder(ILogger<DuplicateFinder> logger)
+    {
+      _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
   }
 }

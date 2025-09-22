@@ -1,4 +1,5 @@
 ﻿using Avalonia.Platform.Storage;
+using Microsoft.Extensions.Logging;
 using System;
 using System.IO;
 
@@ -6,7 +7,7 @@ namespace Dedupligator.App.Helpers
 {
   public static class StorageExtensions
   {
-    public static string? GetSafeLocalPath(this IStorageFolder folder)
+    public static string? GetSafeLocalPath(this IStorageFolder folder, ILogger? logger = null)
     {
       try
       {
@@ -21,11 +22,12 @@ namespace Dedupligator.App.Helpers
           return folder.Name + Path.DirectorySeparatorChar;
         }
 
+        logger?.LogWarning("Failed to get local path from IStorageFolder");
         return null;
       }
       catch (Exception ex)
       {
-        Console.WriteLine($"Error getting path from IStorageFolder: {ex.Message}");
+        logger?.LogError(ex, "Error getting path from IStorageFolder");
         return null;
       }
     }
