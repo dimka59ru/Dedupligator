@@ -38,25 +38,24 @@
       <Setter Property="Theme" Value="{DynamicResource SolidButton}"/>
       <Setter Property="ButtonClass" Value="Danger"/>
     </Style>
-
+    
     <Style Selector="Border.CommonBorderStyle">
       <Setter Property="Theme" Value="{DynamicResource CardBorder}"/>
       <Setter Property="Padding" Value="8"/>
+      <Setter Property="Margin" Value="4"/>
     </Style>
   </Window.Styles>
-  
- <Grid RowDefinitions="*,Auto" Margin="8">
+
+  <Grid RowDefinitions="*,Auto"
+        Margin="4">
+
     <!-- Основное содержимое -->
-    <Grid Grid.Row="0">
-      <Grid.RowDefinitions>
-        <RowDefinition Height="Auto"/>
-        <RowDefinition Height="*"/>
-      </Grid.RowDefinitions>
+    <Grid Grid.Row="0"
+          RowDefinitions="Auto, *">
 
       <!-- Панель управления -->
       <Border Grid.Row="0"
-              Classes="CommonBorderStyle"
-              Margin="0 0 0 8">
+              Classes="CommonBorderStyle">
         <StackPanel Spacing="8">
           <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center"
                 IsEnabled="{Binding !IsProcess}">
@@ -93,17 +92,17 @@
                                        Classes="ModernButtonStyle"
                                        IsVisible="{Binding IsProcess}"
                                        Width="150"/>
-            
+
             <TextBlock Text="Нейро?" VerticalAlignment="Center"/>
             <ToggleSwitch OnContent="Да" OffContent="Нет"
                           IsChecked="{Binding UseNeuro}"
                           IsEnabled="{Binding !IsProcess}">
-              
+
             </ToggleSwitch>
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="8"
                         IsVisible="{Binding !UseNeuro}"
                         IsEnabled="{Binding !IsProcess}">
-              
+
               <RadioButton GroupName="First Group" Content="Точное совпадение"
                            IsChecked="{Binding UseExactMatch}"
                            Theme="{DynamicResource CardRadioButton}"
@@ -120,7 +119,7 @@
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="8"
                         IsVisible="{Binding UseNeuro}"
                         IsEnabled="{Binding !IsProcess}">
-              
+
               <TextBlock Text="Порог:" HorizontalAlignment="Center" VerticalAlignment="Center"/>
               <Slider x:Name="slider"
                       Width="400"
@@ -130,7 +129,7 @@
                       TickFrequency="0.005"
                       TickPlacement="Outside"
                       Value="{Binding SimilarityThreshold}" />
-              <TextBlock Text="{Binding #slider.Value, StringFormat={}{0:0.000}}" 
+              <TextBlock Text="{Binding #slider.Value, StringFormat={}{0:0.000}}"
                          HorizontalAlignment="Center" VerticalAlignment="Center"/>
             </StackPanel>
 
@@ -143,7 +142,7 @@
       </Border>
 
       <!-- Основная область -->
-      <Grid Grid.Row="1" Margin="0">
+      <Grid Grid.Row="1">
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="300" MinWidth="200"/>
           <ColumnDefinition Width="8"/>
@@ -153,14 +152,14 @@
         <GridSplitter Grid.Column="1" ShowsPreview="False" Width="3"/>
 
         <!-- Левая панель - группы -->
-        <Border Grid.Column="0" 
-                Margin="0 0 2 0"
+        <Border Grid.Column="0"
+                Margin="4 4 2 4"
                 Classes="CommonBorderStyle">
           <Grid RowDefinitions="Auto, 8, *">
             <TextBlock Text="Группы дубликатов"
                        Classes="H6"
-                       Theme="{StaticResource TitleTextBlock}" 
-                       Margin="0 0 0 8" 
+                       Theme="{StaticResource TitleTextBlock}"
+                       Margin="0 0 0 8"
                        Grid.Row="0"/>
 
             <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
@@ -172,14 +171,14 @@
                 <ListBox.ItemTemplate>
                   <DataTemplate>
                     <StackPanel Spacing="4">
-                      <TextBlock Text="{Binding GroupName}" FontWeight="SemiBold" FontSize="14" Foreground="{DynamicResource TextPrimaryColor}"/>
+                      <TextBlock Text="{Binding GroupName}" FontWeight="SemiBold" FontSize="14"/>
                       <StackPanel Orientation="Horizontal" Spacing="4">
-                        <TextBlock Text="Файлов: " FontSize="12" Foreground="{DynamicResource TextSecondaryColor}"/>
-                        <TextBlock Text="{Binding FileCount}" FontSize="12" Foreground="{DynamicResource TextSecondaryColor}" FontWeight="SemiBold"/>
+                        <TextBlock Text="Файлов: " FontSize="12" />
+                        <TextBlock Text="{Binding FileCount}" FontSize="12" FontWeight="SemiBold"/>
                       </StackPanel>
                       <StackPanel Orientation="Horizontal" Spacing="4">
-                        <TextBlock Text="Размер: " FontSize="12" Foreground="{DynamicResource TextSecondaryColor}"/>
-                        <TextBlock Text="{Binding TotalSize}" FontSize="12" Foreground="{DynamicResource TextSecondaryColor}" FontWeight="SemiBold"/>
+                        <TextBlock Text="Размер: " FontSize="12"/>
+                        <TextBlock Text="{Binding TotalSize}" FontSize="12" FontWeight="SemiBold"/>
                       </StackPanel>
                     </StackPanel>
                   </DataTemplate>
@@ -190,8 +189,8 @@
         </Border>
 
         <!-- Правая панель - превью -->
-        <Border Grid.Column="2" 
-                Margin="2 0 0 0"
+        <Border Grid.Column="2"
+                Margin="2 4 4 4"
                 Classes="CommonBorderStyle"
                 Padding="0">
 
@@ -255,11 +254,12 @@
     </Grid>
 
     <!-- Панель статуса -->
-    <Border Grid.Row="1" Name="StatusBarBorder" Margin="0 8 0 0"
+    <Border Grid.Row="1"
+            Name="StatusBarBorder"
             Height="36"
             Classes="CommonBorderStyle"
             Background="{DynamicResource SemiGrey1Color}">
-      <Grid ColumnDefinitions="*,Auto">
+      <Grid ColumnDefinitions="*,Auto,Auto">
         <StackPanel Orientation="Horizontal" Grid.Column="0" Spacing="8" VerticalAlignment="Center">
           <StackPanel Orientation="Horizontal" Spacing="4">
             <TextBlock Text="Файлов:" FontSize="12" Foreground="{DynamicResource TextSecondaryColor}" FontWeight="Medium"/>
@@ -274,8 +274,33 @@
           </StackPanel>
         </StackPanel>
 
-        <TextBlock Name="VersionTextBlock" Text="{Binding AppVersion}" FontSize="12" Foreground="{DynamicResource TextSecondaryColor}"
-                   Grid.Column="1" VerticalAlignment="Center"/>
+        <StackPanel Orientation="Horizontal"
+                    Grid.Column="1"
+                    Spacing="8"
+                    VerticalAlignment="Center"
+                    Margin="0 0 8 0">
+          <Button Width="32" Height="32"
+                  Padding="0"
+                  Margin="0"
+                  Command="{Binding ToggleThemeCommand}"
+                  Classes="Tertiary"
+                  Theme="{DynamicResource BorderlessButton}"
+                  IsVisible="{Binding IsDarkTheme}">
+            <iconPacks:Lucide Kind="Moon" Height="16" Width="16"/>
+          </Button>
+          <Button Width="32" Height="32"
+                  Padding="0"
+                  Margin="0"
+                  Command="{Binding ToggleThemeCommand}"
+                  Classes="Tertiary"
+                  Theme="{DynamicResource BorderlessButton}"
+                  IsVisible="{Binding !IsDarkTheme}">
+            <iconPacks:Lucide Kind="Sun" Height="16" Width="16"/>
+          </Button>
+        </StackPanel>
+
+        <TextBlock Name="VersionTextBlock" Text="{Binding AppVersion}" FontSize="12"
+                   Grid.Column="2" VerticalAlignment="Center"/>
       </Grid>
     </Border>
   </Grid>

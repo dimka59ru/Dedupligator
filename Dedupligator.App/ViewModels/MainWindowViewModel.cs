@@ -1,5 +1,7 @@
-﻿using Avalonia.Media.Imaging;
+﻿using Avalonia;
+using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
+using Avalonia.Styling;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Dedupligator.App.Collections;
@@ -10,6 +12,7 @@ using Dedupligator.Services.Cache;
 using Dedupligator.Services.DuplicateFinders;
 using Dedupligator.Services.Factories;
 using Microsoft.Extensions.Logging;
+using Semi.Avalonia;
 using System;
 using System.Collections.Specialized;
 using System.ComponentModel;
@@ -73,6 +76,9 @@ namespace Dedupligator.App.ViewModels
 
     [ObservableProperty]
     private float _similarityThreshold = 0.85f;
+
+    [ObservableProperty]
+    private bool _isDarkTheme;
 
     public int TotalFiles => DuplicateGroups.Sum(x => x.FileCount);
     public int TotalGroup => DuplicateGroups.Count;
@@ -166,6 +172,19 @@ namespace Dedupligator.App.ViewModels
     private void CloseFullScreen(ImagePreviewViewModel? imageVm)
     {
       CloseFullScreen();
+    }
+
+    [RelayCommand]
+    private void ToggleTheme()
+    {
+      var app = Application.Current;
+      if (app is null) return;
+      var theme = app.ActualThemeVariant;
+      app.RequestedThemeVariant = theme == ThemeVariant.Dark ? ThemeVariant.Light : ThemeVariant.Dark;
+      app.UnregisterFollowSystemTheme();
+
+      theme = app.ActualThemeVariant;
+      IsDarkTheme = theme == ThemeVariant.Dark;
     }
 
     private void CloseFullScreen()
@@ -335,6 +354,15 @@ namespace Dedupligator.App.ViewModels
 
       DuplicateGroups.CollectionChanged += DuplicateGroups_CollectionChanged;
       FilePreviews.CollectionChanged+= FilePreviews_CollectionChanged;
+    }
+
+    /// <summary>
+    /// Конструктор для работы визуального редактора
+    /// </summary>
+#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
+    public MainWindowViewModel()
+#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
+    {
     }
   }
 }
