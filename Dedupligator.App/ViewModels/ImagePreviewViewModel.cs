@@ -1,6 +1,7 @@
 ﻿using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Dedupligator.App.Helpers;
 using System.Threading.Tasks;
 
@@ -39,6 +40,12 @@ namespace Dedupligator.App.ViewModels
       {
         Resolution = "Loading error";
       }
+    }
+
+    [RelayCommand]
+    private async Task OpenContainingFolder()
+    {
+      await FileExplorerHelper.OpenFolderWithFileAsync(FilePath, async error => await Task.CompletedTask);
     }
 
     public ImagePreviewViewModel(string fileName, string filePath, string fileSize)
