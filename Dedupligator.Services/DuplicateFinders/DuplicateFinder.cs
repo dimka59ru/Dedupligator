@@ -163,6 +163,14 @@ namespace Dedupligator.Services.DuplicateFinders
             }
           });
       }
+      catch (AggregateException ex)
+      {
+        foreach (var innerEx in ex.InnerExceptions)
+        {
+          _logger.LogError(innerEx, "Ошибка в параллельной обработке");
+        }
+        throw new Exception("Ошибка при параллельной обработке групп", ex);
+      }
       catch (OperationCanceledException)
       {
         _logger.LogWarning("Сравнение файлов было отменено");
@@ -331,7 +339,21 @@ namespace Dedupligator.Services.DuplicateFinders
 
       var allFiles = new ConcurrentBag<FileInfo>();
 
-      var rootDirs = Directory.GetDirectories(directoryPath);
+      string[]? rootDirs = null;
+      try
+      {
+        rootDirs = Directory.GetDirectories(directoryPath);
+      }
+      catch (UnauthorizedAccessException ex)
+      {
+        _logger.LogWarning("Нет доступа к директории {Directory}: {Message}", directoryPath, ex.Message);
+        return [];
+      }
+      catch (IOException ex)
+      {
+        _logger.LogWarning("Ошибка доступа к директории {Directory}: {Message}", directoryPath, ex.Message);
+        return [];
+      }
 
       var totalDirs = rootDirs.Length + 1; // +1 для корня
       long processedDirs = 0;
