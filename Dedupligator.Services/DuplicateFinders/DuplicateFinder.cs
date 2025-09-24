@@ -339,23 +339,18 @@ namespace Dedupligator.Services.DuplicateFinders
 
       var allFiles = new ConcurrentBag<FileInfo>();
 
-      string[]? rootDirs = null;
+      List<string>? rootDirs = null;
       try
       {
-        rootDirs = Directory.GetDirectories(directoryPath);
+        rootDirs = GetDirectories(directoryPath, cancellationToken);
       }
-      catch (UnauthorizedAccessException ex)
+      catch (OperationCanceledException)
       {
-        _logger.LogWarning("Нет доступа к директории {Directory}: {Message}", directoryPath, ex.Message);
-        return [];
-      }
-      catch (IOException ex)
-      {
-        _logger.LogWarning("Ошибка доступа к директории {Directory}: {Message}", directoryPath, ex.Message);
+        _logger.LogWarning("Сканирование директорий было отменено");
         return [];
       }
 
-      var totalDirs = rootDirs.Length + 1; // +1 для корня
+      var totalDirs = rootDirs.Capacity + 1; // +1 для корня
       long processedDirs = 0;
 
       var enumerationOptions = new EnumerationOptions
@@ -406,6 +401,65 @@ namespace Dedupligator.Services.DuplicateFinders
 
       _logger.LogDebug("Всего найдено файлов: {TotalFiles}", allFiles.Count);
       return [.. allFiles];
+    }
+
+    public List<string> GetDirectories(string root, CancellationToken cancellationToken = default)
+    {
+      var result = new List<string>();
+      var options = new EnumerationOptions
+      {
+        IgnoreInaccessible = true,
+        RecurseSubdirectories = false
+      };
+
+      var directories = new Queue<string>();
+      directories.Enqueue(root);
+      int processedCount = 0;
+
+      while (directories.Count > 0)
+      {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        string currentDir = directories.Dequeue();
+
+        try
+        {
+          string[] subDirs = Directory.GetDirectories(currentDir, "*", options);
+
+          for (int i = 0; i < subDirs.Length; i++)
+          {
+            // Проверяем отмену каждые 10 обработанных директорий
+            if (processedCount++ % 10 == 0)
+              cancellationToken.ThrowIfCancellationRequested();
+
+            string dir = subDirs[i];
+
+            if (ShouldSkipDirectory(dir))
+              continue;
+
+            directories.Enqueue(dir);
+            result.Add(dir);
+          }
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+          _logger.LogWarning("Нет доступа к директории {Directory}: {Message}", currentDir, ex.Message);
+          continue;
+        }
+        catch (IOException ex)
+        {
+          _logger.LogWarning("Ошибка доступа к директории {Directory}: {Message}", currentDir, ex.Message);
+          continue;
+        }
+      }
+
+      return result;
+    }
+
+    private static bool ShouldSkipDirectory(string path)
+    {
+      string[] skipPatterns = ["/proc", "/sys", "/dev", "/run"];
+      return skipPatterns.Any(path.StartsWith);
     }
 
     private List<FileInfo> AddImageFilesFromDirectory(string directoryPath, EnumerationOptions options, CancellationToken cancellationToken)
