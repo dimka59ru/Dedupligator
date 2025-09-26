@@ -28,6 +28,7 @@ namespace Dedupligator.App.ViewModels
   {
     private const int PreviewImageMaxWidth = 250;
     private bool _disposed = false;
+    private string? _currentImagePath;
     private readonly AsyncDebouncer _debouncer = new(500);
     private readonly IDuplicateMatchStrategyFactory _strategyFactory;
     private readonly ILogger<MainWindowViewModel> _logger;
@@ -87,6 +88,18 @@ namespace Dedupligator.App.ViewModels
 
 
     private bool CanExecuteScanFolder => SelectedFolderPath is not null;
+
+    [RelayCommand]
+    private async Task PreviousImage()
+    {
+      await NavigateImageAsync(-1);
+    }
+
+    [RelayCommand]
+    private async Task NextImage()
+    {
+      await NavigateImageAsync(1);
+    }
 
     [RelayCommand(CanExecute = nameof(CanExecuteScanFolder))]
     private async Task ScanFolder()
@@ -162,6 +175,7 @@ namespace Dedupligator.App.ViewModels
     {
       if (imageVm != null)
       {
+        _currentImagePath = imageVm.FilePath;
         var (Width, _) = await ImageHelper.GetImageDimensionsAsync(imageVm.FilePath);
         var image = await ImageHelper.LoadImageAsync(imageVm.FilePath, (int)Width);
         SelectedImage = image.Bitmap;
@@ -172,6 +186,12 @@ namespace Dedupligator.App.ViewModels
     private void CloseFullScreen(ImagePreviewViewModel? imageVm)
     {
       CloseFullScreen();
+    }
+
+    private void CloseFullScreen()
+    {
+      _currentImagePath = null;
+      SelectedImage = null;
     }
 
     [RelayCommand]
@@ -187,9 +207,23 @@ namespace Dedupligator.App.ViewModels
       IsDarkTheme = theme == ThemeVariant.Dark;
     }
 
-    private void CloseFullScreen()
+    private async Task NavigateImageAsync(int direction)
     {
-      SelectedImage = null;
+      if (SelectedFileGroup == null || FilePreviews.Count == 0)
+        return;
+
+      var currentIndex = FilePreviews
+          .Select((preview, index) => new { preview, index })
+          .FirstOrDefault(x => x.preview.FilePath == _currentImagePath)?.index ?? -1;
+
+      if (currentIndex == -1)
+      {
+        await OpenFullScreen(FilePreviews[0]);
+        return;
+      }
+
+      var newIndex = (currentIndex + direction + FilePreviews.Count) % FilePreviews.Count;
+      await OpenFullScreen(FilePreviews[newIndex]);
     }
 
     private IDuplicateMatchStrategy CreateStrategy()
