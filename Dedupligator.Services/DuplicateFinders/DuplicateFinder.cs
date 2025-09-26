@@ -56,15 +56,15 @@ namespace Dedupligator.Services.DuplicateFinders
         allFiles = GetImageFiles(normalizedPath, progress, SCAN_PHASE_WEIGHT, _maxParallelism, cancellationToken);
         _logger.LogInformation("Найдено файлов: {FileCount}", allFiles.Count);
       }
-      catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+      catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
       {
-        _logger.LogWarning("Сканирование файлов было отменено");
+        _logger.LogWarning(ex, "Сканирование файлов было отменено");
         return [];
       }
       catch (Exception ex)
       {
         _logger.LogError(ex, "Ошибка при сканировании файлов в директории: {DirectoryPath}", directoryPath);
-        throw;
+        return [];
       }
 
       if (allFiles.Count == 0)
@@ -167,18 +167,16 @@ namespace Dedupligator.Services.DuplicateFinders
       {
         foreach (var innerEx in ex.InnerExceptions)
         {
-          _logger.LogError(innerEx, "Ошибка в параллельной обработке");
+          _logger.LogError(ex, "Ошибка в параллельной обработке: {Message}", innerEx.Message);
         }
-        throw new Exception("Ошибка при параллельной обработке групп", ex);
       }
-      catch (OperationCanceledException)
+      catch (OperationCanceledException ex)
       {
-        _logger.LogWarning("Сравнение файлов было отменено");
+        _logger.LogWarning(ex, "Сравнение файлов было отменено");
       }
       catch (Exception ex)
       {
         _logger.LogError(ex, "Ошибка при сравнении файлов в группах");
-        throw;
       }
 
       return [.. duplicateGroups];
@@ -308,9 +306,9 @@ namespace Dedupligator.Services.DuplicateFinders
 
           });
       }
-      catch (OperationCanceledException)
+      catch (OperationCanceledException ex)
       {
-        _logger.LogWarning("Группировка файлов была отменена");
+        _logger.LogWarning(ex, "Группировка файлов была отменена");
       }
 
       var result = fileKeys
@@ -344,21 +342,14 @@ namespace Dedupligator.Services.DuplicateFinders
       {
         rootDirs = GetDirectories(directoryPath, cancellationToken);
       }
-      catch (OperationCanceledException)
+      catch (OperationCanceledException ex)
       {
-        _logger.LogWarning("Сканирование директорий было отменено");
+        _logger.LogWarning(ex, "Сканирование директорий было отменено");
         return [];
       }
 
-      var totalDirs = rootDirs.Capacity + 1; // +1 для корня
+      var totalDirs = rootDirs.Count + 1; // +1 для корня
       long processedDirs = 0;
-
-      var enumerationOptions = new EnumerationOptions
-      {
-        RecurseSubdirectories = true,
-        IgnoreInaccessible = true,
-        AttributesToSkip = FileAttributes.System | FileAttributes.Temporary
-      };
 
       var parallelOptions = new ParallelOptions
       {
@@ -370,7 +361,7 @@ namespace Dedupligator.Services.DuplicateFinders
       {
         Parallel.ForEach(rootDirs, parallelOptions, dir =>
           {
-            var files = AddImageFilesFromDirectory(dir, enumerationOptions, cancellationToken);
+            var files = AddImageFilesFromDirectory(dir, cancellationToken);
             allFiles.AddRange(files);
             _logger.LogTrace("Найдено {FileCount} файлов в директории {Directory}", files.Count, dir);
 
@@ -378,21 +369,15 @@ namespace Dedupligator.Services.DuplicateFinders
             progress?.Report(currentProgress * phaseWeight * 100);
           });
       }
-      catch (OperationCanceledException)
+      catch (OperationCanceledException ex)
       {
-        _logger.LogWarning("Сканирование директорий было отменено");
+        _logger.LogWarning(ex, "Сканирование директорий было отменено");
       }
 
       // Обрабатываем файлы из корневой директории
       cancellationToken.ThrowIfCancellationRequested();
-      var rootOptions = new EnumerationOptions
-      {
-        RecurseSubdirectories = false,
-        IgnoreInaccessible = true,
-        AttributesToSkip = FileAttributes.System | FileAttributes.Temporary
-      };
 
-      var rootFiles = AddImageFilesFromDirectory(directoryPath, rootOptions, cancellationToken);
+      var rootFiles = AddImageFilesFromDirectory(directoryPath, cancellationToken);
       allFiles.AddRange(rootFiles);
       _logger.LogTrace("Найдено {FileCount} файлов в директории {Directory}", rootFiles.Count, directoryPath);
 
@@ -443,13 +428,11 @@ namespace Dedupligator.Services.DuplicateFinders
         }
         catch (UnauthorizedAccessException ex)
         {
-          _logger.LogWarning("Нет доступа к директории {Directory}: {Message}", currentDir, ex.Message);
-          continue;
+          _logger.LogWarning(ex, "Нет доступа к директории {Directory}: {Message}", currentDir, ex.Message);
         }
         catch (IOException ex)
         {
-          _logger.LogWarning("Ошибка доступа к директории {Directory}: {Message}", currentDir, ex.Message);
-          continue;
+          _logger.LogWarning(ex, "Ошибка доступа к директории {Directory}: {Message}", currentDir, ex.Message);
         }
       }
 
@@ -462,13 +445,20 @@ namespace Dedupligator.Services.DuplicateFinders
       return skipPatterns.Any(path.StartsWith);
     }
 
-    private List<FileInfo> AddImageFilesFromDirectory(string directoryPath, EnumerationOptions options, CancellationToken cancellationToken)
+    private List<FileInfo> AddImageFilesFromDirectory(string directoryPath, CancellationToken cancellationToken)
     {
       cancellationToken.ThrowIfCancellationRequested();
 
+      var enumerationOptions = new EnumerationOptions
+      {
+        RecurseSubdirectories = false,
+        IgnoreInaccessible = true,
+        AttributesToSkip = FileAttributes.System | FileAttributes.Temporary
+      };
+
       try
       {
-        return [.. Directory.EnumerateFiles(directoryPath, "*", options)
+        return [.. Directory.EnumerateFiles(directoryPath, "*", enumerationOptions)
             .Where(IsImageFile)
             .Select(filePath =>
             {
@@ -478,12 +468,12 @@ namespace Dedupligator.Services.DuplicateFinders
       }
       catch (UnauthorizedAccessException ex)
       {
-        _logger.LogWarning("Нет доступа к директории {Directory}: {Message}", directoryPath, ex.Message);
+        _logger.LogWarning(ex, "Нет доступа к директории {Directory}: {Message}", directoryPath, ex.Message);
         return [];
       }
       catch (IOException ex)
       {
-        _logger.LogWarning("Ошибка доступа к директории {Directory}: {Message}", directoryPath, ex.Message);
+        _logger.LogWarning(ex, "Ошибка доступа к директории {Directory}: {Message}", directoryPath, ex.Message);
         return [];
       }
     }
