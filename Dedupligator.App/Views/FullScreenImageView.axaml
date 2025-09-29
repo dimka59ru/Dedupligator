@@ -1,0 +1,166 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             xmlns:iconPacks="clr-namespace:IconPacks.Avalonia.Lucide;assembly=IconPacks.Avalonia.Lucide"
+             x:Class="Dedupligator.App.Views.FullScreenImageView"
+             x:Name="fsImageControl">
+  
+  <Grid ColumnDefinitions="*, 300"
+          Background="{DynamicResource SemiColorBackground}">
+
+    <!-- Левая часть - изображение с навигацией -->
+    <Grid Grid.Column="0"
+        RowDefinitions="*, Auto">
+      
+      <Border Grid.Row="0"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Background="Transparent"
+            Margin="0,8,0,0">
+
+        <Image Source="{Binding ImageSource, ElementName=fsImageControl}"
+               Stretch="Uniform"
+               x:Name="PreviewImage">
+          <Image.ContextMenu>
+            <ContextMenu>
+              <MenuItem Header="Oткрыть содержащую папку" 
+                        Command="{Binding OpenContainingFolderCommand, ElementName=fsImageControl}"
+                        CommandParameter="{Binding ImageInfo.FilePath, ElementName=fsImageControl}"/>
+            </ContextMenu>
+          </Image.ContextMenu>
+        </Image>
+      </Border>
+
+      <!-- Кнопки под изображением -->
+      <StackPanel Grid.Row="1"
+                  Orientation="Horizontal"
+                  HorizontalAlignment="Center"
+                  Spacing="8"
+                  Margin="0,8">
+        <Button Command="{Binding PreviousCommand, ElementName=fsImageControl}">
+          <iconPacks:Lucide Kind="ArrowBigLeft" Height="16" Width="16"/>
+        </Button>
+
+        <Button Command="{Binding NextCommand, ElementName=fsImageControl}">
+          <iconPacks:Lucide Kind="ArrowBigRight" Height="16" Width="16"/>
+        </Button>
+      </StackPanel>
+      
+    </Grid>
+
+    <!-- Правая часть - метаданные -->
+    <Border Grid.Column="1"
+            Background="{DynamicResource SemiColorNavBackground}"
+            BorderBrush="{DynamicResource SemiColorBorder}"
+            BorderThickness="1,0,0,0">
+
+      <ScrollViewer VerticalScrollBarVisibility="Auto"
+                    Padding="16">
+        <StackPanel Spacing="8">
+
+          <!-- Заголовок -->
+          <TextBlock Text="Метаданные изображения"
+                     FontSize="16"
+                     FontWeight="Bold"
+                     Foreground="{DynamicResource SemiColorText}"/>
+
+          <Separator Background="{DynamicResource SemiColorBorder}"/>
+
+          <!-- Основная информация -->
+          <StackPanel Spacing="4">
+            <TextBlock Text="{Binding ImageInfo.FileName, ElementName=fsImageControl}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource SemiColorText}"
+                       TextWrapping="Wrap"
+                       TextTrimming="CharacterEllipsis"/>
+
+            <TextBlock Text="{Binding ImageInfo.FilePath, ElementName=fsImageControl}"
+                       FontSize="11"
+                       Foreground="{DynamicResource SemiColorTextSecondary}"
+                       TextWrapping="Wrap"
+                       TextTrimming="CharacterEllipsis"/>
+          </StackPanel>
+
+          <!-- Размеры -->
+          <StackPanel Spacing="2">
+            <TextBlock Text="Размеры"
+                       FontSize="12"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource SemiColorText}"/>
+
+            <Grid ColumnDefinitions="Auto, *">
+              <TextBlock Text="Разрешение:"
+                         Foreground="{DynamicResource SemiColorTextSecondary}"/>
+              <TextBlock Text="{Binding ImageInfo.Dimensions, ElementName=fsImageControl}"
+                         Grid.Column="1"
+                         HorizontalAlignment="Right"
+                         Foreground="{DynamicResource SemiColorText}"
+                         TextTrimming="CharacterEllipsis"/>
+            </Grid>
+
+            <Grid ColumnDefinitions="Auto, *">
+              <TextBlock Text="Размер файла:"
+                         Foreground="{DynamicResource SemiColorTextSecondary}"/>
+              <TextBlock Text="{Binding ImageInfo.FileSize, ElementName=fsImageControl}"
+                         Grid.Column="1"
+                         HorizontalAlignment="Right"
+                         Foreground="{DynamicResource SemiColorText}"
+                         TextTrimming="CharacterEllipsis"/>
+            </Grid>
+          </StackPanel>
+
+          <!-- EXIF данные (если есть) -->
+          <StackPanel Spacing="2"
+                      IsVisible="{Binding ImageInfo.HasExif, ElementName=fsImageControl}">
+            <TextBlock Text="EXIF данные"
+                       FontSize="12"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource SemiColorText}"/>
+
+            <Grid ColumnDefinitions="Auto, *">
+              <TextBlock Text="Камера:"
+                         Foreground="{DynamicResource SemiColorTextSecondary}"/>
+              <TextBlock Text="{Binding ImageInfo.CameraModel, ElementName=fsImageControl}"
+                         Grid.Column="1"
+                         HorizontalAlignment="Right"
+                         Foreground="{DynamicResource SemiColorText}"
+                         TextWrapping="Wrap"
+                         TextTrimming="CharacterEllipsis"/>
+            </Grid>
+
+            <Grid ColumnDefinitions="Auto, *">
+              <TextBlock Text="Дата съемки:"
+                         Foreground="{DynamicResource SemiColorTextSecondary}"/>
+              <TextBlock Text="{Binding ImageInfo.DateTaken, ElementName=fsImageControl}"
+                         Grid.Column="1"
+                         HorizontalAlignment="Right"
+                         Foreground="{DynamicResource SemiColorText}"
+                         TextTrimming="CharacterEllipsis"/>
+            </Grid>
+
+            <Grid ColumnDefinitions="Auto, *">
+              <TextBlock Text="Параметры:"
+                         Foreground="{DynamicResource SemiColorTextSecondary}"/>
+              <TextBlock Text="{Binding ImageInfo.Exposure, ElementName=fsImageControl}"
+                         Grid.Column="1"
+                         HorizontalAlignment="Right"
+                         Foreground="{DynamicResource SemiColorText}"
+                         TextTrimming="CharacterEllipsis"/>
+            </Grid>
+          </StackPanel>
+        </StackPanel>
+      </ScrollViewer>
+    </Border>
+    
+    <!-- Кнопка закрытия -->
+    <Button Grid.Column="1"
+            HorizontalAlignment="Right" VerticalAlignment="Top"
+            Margin="8" Width="32" Height="32" CornerRadius="16"
+            Padding="0"
+            Command="{Binding CloseCommand, ElementName=fsImageControl}"
+            Foreground="{DynamicResource SemiColorDanger}"
+            Content="✕"/>
+  </Grid>
+</UserControl>

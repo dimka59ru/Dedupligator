@@ -196,13 +196,15 @@
 
           <Grid Margin="0">
             <!-- Полноэкранное изображение -->
-            <controls:FullScreenImageView
+            <views:FullScreenImageView
               IsVisible="{Binding SelectedImage, Converter={x:Static ObjectConverters.IsNotNull}}"
               ZIndex="100"
               ImageSource="{Binding SelectedImage}"
+              ImageInfo="{Binding CurrentImageInfo}"
               PreviousCommand="{Binding PreviousImageCommand}"
               NextCommand="{Binding NextImageCommand}"
-              CloseCommand="{Binding CloseFullScreenCommand}"/>
+              CloseCommand="{Binding CloseFullScreenCommand}"
+              OpenContainingFolderCommand="{Binding OpenContainingFolderCommand}"/>
 
             <!-- Обычный режим с сеткой превью -->
             <Grid RowDefinitions="*,Auto"
@@ -222,7 +224,9 @@
                     <DataTemplate DataType="{x:Type vm:ImagePreviewViewModel}">
                       <views:ImagePreviewView Margin="0 0 4 4"
                         behaviors:DoubleClickBehavior.Command="{Binding $parent[ItemsControl].DataContext.OpenFullScreenCommand}"
-                        behaviors:DoubleClickBehavior.CommandParameter="{Binding}"/>
+                        behaviors:DoubleClickBehavior.CommandParameter="{Binding}"
+                        OpenContainingFolderCommand="{Binding $parent[ItemsControl].DataContext.OpenContainingFolderCommand}">
+                      </views:ImagePreviewView>
                     </DataTemplate>
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>

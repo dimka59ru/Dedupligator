@@ -5,13 +5,16 @@
              xmlns:vm="clr-namespace:Dedupligator.App.ViewModels"
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              x:Class="Dedupligator.App.Views.ImagePreviewView"
-             x:DataType="vm:ImagePreviewViewModel">
+             x:DataType="vm:ImagePreviewViewModel"
+             x:Name="imagePreviewControl">
 
   <Border Margin="5" Padding="8" Background="{DynamicResource SemiGrey1Color}"
                             CornerRadius="6" Width="250">
     <Border.ContextMenu>
       <ContextMenu>
-        <MenuItem Header="Oткрыть содержащую папку" Command="{Binding OpenContainingFolderCommand}"/>
+        <MenuItem Header="Oткрыть содержащую папку"
+                        Command="{Binding OpenContainingFolderCommand, ElementName=imagePreviewControl}"
+                        CommandParameter="{Binding FilePath}"/>
       </ContextMenu>
     </Border.ContextMenu>
     <StackPanel>
@@ -21,10 +24,14 @@
 
       <TextBlock Text="{Binding FileName}"
              TextWrapping="Wrap" Margin="0 5 0 2"/>
+      <TextBlock Text="{Binding FilePath}"
+                       FontSize="9"
+                       Foreground="{DynamicResource SemiColorTextSecondary}"
+                       TextWrapping="Wrap"/>
       <TextBlock Text="{Binding Resolution}"
-             FontSize="10" Foreground="Gray"/>
+             FontSize="10" Foreground="{DynamicResource SemiColorTextSecondary}"/>
       <TextBlock Text="{Binding FileSize}"
-             FontSize="10" Foreground="Gray"/>
+             FontSize="10" Foreground="{DynamicResource SemiColorTextSecondary}"/>
 
       <CheckBox Name="DeleteCheckBox"
             Content="Удалить" Margin="0 5 0 0"

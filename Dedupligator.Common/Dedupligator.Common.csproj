@@ -11,4 +11,8 @@
     <InformationalVersion>0.2.0.0</InformationalVersion>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.11" />
+  </ItemGroup>
+
 </Project>

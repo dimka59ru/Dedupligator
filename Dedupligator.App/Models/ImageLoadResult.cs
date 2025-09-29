@@ -1,4 +1,5 @@
 ﻿using Avalonia.Media.Imaging;
+using Dedupligator.Common.Models;
 
 namespace Dedupligator.App.Models
 {
@@ -9,6 +10,7 @@ namespace Dedupligator.App.Models
     public double Width { get; set; } = width;
     public double Height { get; set; } = height;
     public bool IsSuccess { get; set; } = isSuccess;
+    public ImageInfo? ImageInfo { get; set; }
   }
 
   public class ImageLoadResult(bool isSuccess, double width, double height) : ImageInfoResult(isSuccess, width, height)
@@ -16,7 +18,7 @@ namespace Dedupligator.App.Models
     public Bitmap? Bitmap { get; set; }
 
     public ImageLoadResult() : this(false, 0, 0)
-    {      
+    {
     }
   }
 }

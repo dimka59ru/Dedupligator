@@ -7,12 +7,15 @@ using CommunityToolkit.Mvvm.Input;
 using Dedupligator.App.Collections;
 using Dedupligator.App.Helpers;
 using Dedupligator.App.Models;
+using Dedupligator.Common.Helpers;
+using Dedupligator.Common.Models;
 using Dedupligator.Services;
 using Dedupligator.Services.Cache;
 using Dedupligator.Services.DuplicateFinders;
 using Dedupligator.Services.Factories;
 using Microsoft.Extensions.Logging;
 using Semi.Avalonia;
+using SixLabors.ImageSharp.Metadata.Profiles.Exif;
 using System;
 using System.Collections.Specialized;
 using System.ComponentModel;
@@ -28,7 +31,6 @@ namespace Dedupligator.App.ViewModels
   {
     private const int PreviewImageMaxWidth = 250;
     private bool _disposed = false;
-    private string? _currentImagePath;
     private readonly AsyncDebouncer _debouncer = new(500);
     private readonly IDuplicateMatchStrategyFactory _strategyFactory;
     private readonly ILogger<MainWindowViewModel> _logger;
@@ -80,6 +82,9 @@ namespace Dedupligator.App.ViewModels
 
     [ObservableProperty]
     private bool _isDarkTheme;
+
+    [ObservableProperty]
+    private ImageInfo? _currentImageInfo;
 
     public int TotalFiles => DuplicateGroups.Sum(x => x.FileCount);
     public int TotalGroup => DuplicateGroups.Count;
@@ -175,10 +180,18 @@ namespace Dedupligator.App.ViewModels
     {
       if (imageVm != null)
       {
-        _currentImagePath = imageVm.FilePath;
-        var (Width, _) = await ImageHelper.GetImageDimensionsAsync(imageVm.FilePath);
+        var (Width, Height) = await ImageHelper.GetImageDimensionsAsync(imageVm.FilePath);
         var image = await ImageHelper.LoadImageAsync(imageVm.FilePath, (int)Width);
         SelectedImage = image.Bitmap;
+
+        var baseInfo = ImageInfo.CreateBasic(
+            imageVm.FilePath,
+            new FileInfo(imageVm.FilePath).Length,
+            Width,
+            Height
+        );
+
+        CurrentImageInfo = await LoadExifDataAsync(baseInfo, imageVm.FilePath);
       }
     }
 
@@ -190,7 +203,7 @@ namespace Dedupligator.App.ViewModels
 
     private void CloseFullScreen()
     {
-      _currentImagePath = null;
+      CurrentImageInfo = null;
       SelectedImage = null;
     }
 
@@ -207,14 +220,55 @@ namespace Dedupligator.App.ViewModels
       IsDarkTheme = theme == ThemeVariant.Dark;
     }
 
+    [RelayCommand]
+    private async Task OpenContainingFolder(string filePath)
+    {
+      _logger.LogDebug("Открытие папки с файлом: {FilePath}", filePath);
+
+      await FileExplorerHelper.OpenFolderWithFileAsync(
+        filePath,
+        async error =>
+        {
+          _logger.LogWarning("Ошибка открытия папки: {ErrorMessage}", error);
+          await Task.CompletedTask;
+        });
+    }
+
+    private static async Task<ImageInfo> LoadExifDataAsync(ImageInfo baseInfo, string filePath)
+    {
+      try
+      {
+        using var image = await SixLabors.ImageSharp.Image.LoadAsync(filePath);
+        if (image.Metadata.ExifProfile == null)
+          return baseInfo;
+
+        var exif = image.Metadata.ExifProfile;
+
+        var make = exif.Values.FirstOrDefault(x => x.Tag == ExifTag.Make)?.GetValue()?.ToString();
+        var model = exif.Values.FirstOrDefault(x => x.Tag == ExifTag.Model)?.GetValue()?.ToString();
+        var dateTaken = exif.Values.FirstOrDefault(x => x.Tag == ExifTag.DateTime)?.GetValue()?.ToString();
+
+        return baseInfo with
+        {
+          CameraModel = $"{make} {model}".Trim(),
+          DateTaken = dateTaken ?? string.Empty,
+          Exposure = ImageInfo.GetExposureString(exif)
+        };
+      }
+      catch
+      {
+        return baseInfo;
+      }
+    }
+
     private async Task NavigateImageAsync(int direction)
     {
-      if (SelectedFileGroup == null || FilePreviews.Count == 0)
+      if (SelectedFileGroup == null || FilePreviews.Count == 0 || CurrentImageInfo == null)
         return;
 
       var currentIndex = FilePreviews
           .Select((preview, index) => new { preview, index })
-          .FirstOrDefault(x => x.preview.FilePath == _currentImagePath)?.index ?? -1;
+          .FirstOrDefault(x => x.preview.FilePath == CurrentImageInfo.FilePath)?.index ?? -1;
 
       if (currentIndex == -1)
       {
