@@ -1,12 +1,21 @@
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Markup.Xaml;
+using CommunityToolkit.Mvvm.Input;
 
 namespace Dedupligator.App.Views;
 
 public partial class ImagePreviewView : UserControl
 {
-    public ImagePreviewView()
+  public static readonly StyledProperty<IRelayCommand?> OpenContainingFolderCommandProperty =
+   AvaloniaProperty.Register<ImagePreviewView, IRelayCommand?>(nameof(OpenContainingFolderCommand));
+
+  public IRelayCommand? OpenContainingFolderCommand
+  {
+    get => GetValue(OpenContainingFolderCommandProperty);
+    set => SetValue(OpenContainingFolderCommandProperty, value);
+  }
+
+  public ImagePreviewView()
     {
         InitializeComponent();
     }

@@ -1,4 +1,4 @@
-﻿namespace Dedupligator.App.Helpers
+﻿namespace Dedupligator.Common.Helpers
 {
   public static class FileSizeExtensions
   {

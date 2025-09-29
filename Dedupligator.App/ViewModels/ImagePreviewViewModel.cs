@@ -1,7 +1,6 @@
 ﻿using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 using Dedupligator.App.Helpers;
 using Microsoft.Extensions.Logging;
 using System;
@@ -49,20 +48,6 @@ namespace Dedupligator.App.ViewModels
         _logger.LogError(ex, "Ошибка загрузки изображения: {FileName}", FileName);
         Resolution = "Ошибка загрузки";
       }
-    }
-
-    [RelayCommand]
-    private async Task OpenContainingFolder()
-    {
-      _logger.LogDebug("Открытие папки с файлом: {FileName}", FileName);
-
-      await FileExplorerHelper.OpenFolderWithFileAsync(
-        FilePath,
-        async error =>
-        {
-          _logger.LogWarning("Ошибка открытия папки: {ErrorMessage}", error);
-          await Task.CompletedTask;
-        });
     }
 
     public ImagePreviewViewModel(string fileName, string filePath, string fileSize, ILogger<ImagePreviewViewModel> logger)
