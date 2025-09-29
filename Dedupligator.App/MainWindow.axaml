@@ -44,33 +44,6 @@
       <Setter Property="Padding" Value="8"/>
       <Setter Property="Margin" Value="4"/>
     </Style>
-
-    <Style Selector="Button.nav-button">
-      <Setter Property="Background" Value="Transparent"/>
-      <Setter Property="Foreground" Value="Transparent"/>
-      <Setter Property="HorizontalAlignment" Value="Stretch"/>
-      <Setter Property="VerticalAlignment" Value="Stretch"/>
-      <Setter Property="BorderThickness" Value="0"/>
-      <Setter Property="CornerRadius" Value="0"/>
-      <Setter Property="FontSize" Value="32"/>
-      <Setter Property="FontWeight" Value="Bold"/>
-      <Setter Property="Template">
-        <ControlTemplate>
-          <Border Name="border"
-                  Background="{TemplateBinding Background}"
-                  BorderThickness="{TemplateBinding BorderThickness}">
-            <ContentPresenter Content="{TemplateBinding Content}"
-                              Foreground="{TemplateBinding Foreground}"
-                              HorizontalAlignment="Center"
-                              VerticalAlignment="Center"/>
-          </Border>
-        </ControlTemplate>
-      </Setter>
-    </Style>
-    <Style Selector="Button.nav-button:pointerover">
-      <Setter Property="Background" Value="{DynamicResource SemiColorText3}"/>
-      <Setter Property="Foreground" Value="{DynamicResource SemiColorNavBackground}"/>
-    </Style>
   </Window.Styles>
 
   <Grid RowDefinitions="*,Auto"
@@ -223,48 +196,13 @@
 
           <Grid Margin="0">
             <!-- Полноэкранное изображение -->
-            <Grid ColumnDefinitions="*, 30"
-                  IsVisible="{Binding SelectedImage, Converter={x:Static ObjectConverters.IsNotNull}}"
-                  ZIndex="100">
-
-              <!-- Контейнер для центрирования -->
-              <Border Grid.Column="0"
-                      HorizontalAlignment="Center"
-                      VerticalAlignment="Center"
-                      Background="Transparent">
-
-                <Grid>
-                  <!-- Основное изображение -->
-                  <Image Source="{Binding SelectedImage}"
-                         Stretch="Uniform"
-                         x:Name="PreviewImage"/>
-
-                  <!-- Кнопки по бокам -->
-                  <Grid ColumnDefinitions="50, *, 50" Margin="0">
-
-                    <!-- Левая кнопка -->
-                    <Button Grid.Column="0"
-                            Content="‹"
-                            Classes="nav-button"
-                            Command="{Binding PreviousImageCommand}"/>
-
-                    <!-- Правая кнопка -->
-                    <Button Grid.Column="2"
-                            Content="›"
-                            Classes="nav-button"
-                            Command="{Binding NextImageCommand}"/>
-                  </Grid>
-                </Grid>
-              </Border>
-
-              <Button Grid.Column="1"
-                      HorizontalAlignment="Right" VerticalAlignment="Top"
-                      Margin="8" Width="32" Height="32" CornerRadius="16"
-                      Padding="0"
-                      Command="{Binding CloseFullScreenCommand}"
-                      Foreground="{DynamicResource SemiColorDanger}"
-                      Content="✕"/>
-            </Grid>
+            <controls:FullScreenImageView
+              IsVisible="{Binding SelectedImage, Converter={x:Static ObjectConverters.IsNotNull}}"
+              ZIndex="100"
+              ImageSource="{Binding SelectedImage}"
+              PreviousCommand="{Binding PreviousImageCommand}"
+              NextCommand="{Binding NextImageCommand}"
+              CloseCommand="{Binding CloseFullScreenCommand}"/>
 
             <!-- Обычный режим с сеткой превью -->
             <Grid RowDefinitions="*,Auto"
