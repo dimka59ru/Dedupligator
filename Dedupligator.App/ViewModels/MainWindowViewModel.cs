@@ -51,6 +51,8 @@ namespace Dedupligator.App.ViewModels
     private ObservableRangeCollection<ImagePreviewViewModel> _filePreviews = [];
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ScanFolderCommand))]
+    [NotifyCanExecuteChangedFor(nameof(StopScanFolderCommand))]
     private bool _isProcess;
 
     [ObservableProperty]
@@ -91,9 +93,6 @@ namespace Dedupligator.App.ViewModels
     public string? SelectedFolderPath => SelectedFolder?.GetSafeLocalPath(_logger);
     public static string AppVersion { get; } = $"v{GetAppVersion()}";
 
-
-    private bool CanExecuteScanFolder => SelectedFolderPath is not null;
-
     [RelayCommand]
     private async Task PreviousImage()
     {
@@ -105,6 +104,8 @@ namespace Dedupligator.App.ViewModels
     {
       await NavigateImageAsync(1);
     }
+
+    private bool CanExecuteScanFolder => SelectedFolderPath is not null && !IsProcess;
 
     [RelayCommand(CanExecute = nameof(CanExecuteScanFolder))]
     private async Task ScanFolder()
@@ -157,7 +158,9 @@ namespace Dedupligator.App.ViewModels
       }
     }
 
-    [RelayCommand]
+    private bool CanExecuteStopScanFolder => IsProcess;
+
+    [RelayCommand(CanExecute = nameof(CanExecuteStopScanFolder))]
     private void StopScanFolder()
     {
       _findDuplicatesCancellationTokenSource?.Cancel();
