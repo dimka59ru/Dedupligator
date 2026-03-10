@@ -141,7 +141,7 @@ namespace Dedupligator.Services.DuplicateFinders
 
     public NeuralSimilarityStrategy(float Threshold)
     {
-      var modelPath = Path.Combine(Directory.GetCurrentDirectory(), "Assets", "mobilenetv2-7.onnx");
+      var modelPath = Path.Combine(AppContext.BaseDirectory, "Assets", "mobilenetv2-7.onnx");
       if (!File.Exists(modelPath))
         throw new FileNotFoundException($"Model file not found: {modelPath}");
 
