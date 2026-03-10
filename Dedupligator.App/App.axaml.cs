@@ -118,7 +118,8 @@ namespace Dedupligator.App
         builder.SetMinimumLevel(LogLevel.Debug);
       });
       services.AddTransient<DuplicateFinder>();
-      services.AddSingleton<IDuplicateMatchStrategyFactory, DuplicateMatchStrategyFactory>();
+      services.AddSingleton<DuplicateMatchStrategyFactory>();
+      services.AddSingleton<IDuplicateMatchStrategyFactory>(sp => sp.GetRequiredService<DuplicateMatchStrategyFactory>());
       services.AddScoped<MainWindowViewModel>();
     }
   }

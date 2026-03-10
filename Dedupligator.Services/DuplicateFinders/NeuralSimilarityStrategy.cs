@@ -134,6 +134,7 @@ namespace Dedupligator.Services.DuplicateFinders
         if (disposing)
         {
           _session?.Dispose();
+          _embeddingCache.Clear();
         }
       }
     }
