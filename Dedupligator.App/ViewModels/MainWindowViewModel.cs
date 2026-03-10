@@ -113,7 +113,6 @@ namespace Dedupligator.App.ViewModels
         return;
 
       var strategy = CreateStrategy();
-      _duplicateFinder.SetStrategy(strategy);
 
       IsProcess = true;
       DuplicateGroups.Clear();
@@ -130,6 +129,7 @@ namespace Dedupligator.App.ViewModels
         _findDuplicatesCancellationTokenSource = new CancellationTokenSource();
         var duplicateGroups = await Task.Run(() =>
           _duplicateFinder.FindDuplicates(
+            strategy,
             SelectedFolderPath, 
             progress, 
             _findDuplicatesCancellationTokenSource.Token));
