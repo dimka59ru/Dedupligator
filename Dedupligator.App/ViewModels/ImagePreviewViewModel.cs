@@ -8,12 +8,23 @@ using System.Threading.Tasks;
 
 namespace Dedupligator.App.ViewModels
 {
-  public partial class ImagePreviewViewModel : ViewModelBase
+  public sealed partial class ImagePreviewViewModel : ViewModelBase, IDisposable
   {
     private readonly ILogger<ImagePreviewViewModel> _logger;
-
-    [ObservableProperty]
     private Bitmap? _imagePreview;
+
+    public Bitmap? ImagePreview
+    {
+      get => _imagePreview;
+      set
+      {
+        if (ReferenceEquals(_imagePreview, value))
+          return;
+
+        _imagePreview?.Dispose();
+        SetProperty(ref _imagePreview, value);
+      }
+    }
 
     [ObservableProperty]
     private string? _resolution;
@@ -65,6 +76,11 @@ namespace Dedupligator.App.ViewModels
       FileSize = fileSize;
 
       _logger.LogDebug("Создан ImagePreviewViewModel для файла: {FileName}", fileName);
+    }
+
+    public void Dispose()
+    {
+      ImagePreview = null;
     }
   }
 }
