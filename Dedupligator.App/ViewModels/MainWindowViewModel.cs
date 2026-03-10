@@ -1,456 +1,1 @@
-﻿using Avalonia;
-using Avalonia.Media.Imaging;
-using Avalonia.Platform.Storage;
-using Avalonia.Styling;
-using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
-using Dedupligator.App.Collections;
-using Dedupligator.App.Helpers;
-using Dedupligator.App.Models;
-using Dedupligator.Common.Helpers;
-using Dedupligator.Common.Models;
-using Dedupligator.Services;
-using Dedupligator.Services.Cache;
-using Dedupligator.Services.DuplicateFinders;
-using Dedupligator.Services.Factories;
-using Microsoft.Extensions.Logging;
-using Semi.Avalonia;
-using SixLabors.ImageSharp.Metadata.Profiles.Exif;
-using System;
-using System.Collections.Specialized;
-using System.ComponentModel;
-using System.IO;
-using System.Linq;
-using System.Reflection;
-using System.Threading;
-using System.Threading.Tasks;
-
-namespace Dedupligator.App.ViewModels
-{
-  public partial class MainWindowViewModel : ViewModelBase, IDisposable
-  {
-    private const int PreviewImageMaxWidth = 250;
-    private bool _disposed = false;
-    private readonly AsyncDebouncer _debouncer = new(500);
-    private readonly IDuplicateMatchStrategyFactory _strategyFactory;
-    private readonly ILogger<MainWindowViewModel> _logger;
-    private readonly ILoggerFactory _loggerFactory;
-    private readonly DuplicateFinder _duplicateFinder;
-
-    private CancellationTokenSource? _findDuplicatesCancellationTokenSource;
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(ScanFolderCommand))]
-    [NotifyPropertyChangedFor(nameof(SelectedFolderPath))]
-    private IStorageFolder? _selectedFolder;
-
-    [ObservableProperty]
-    private ObservableRangeCollection<DuplicateGroup> _duplicateGroups = [];
-
-    [ObservableProperty]
-    private ObservableRangeCollection<ImagePreviewViewModel> _filePreviews = [];
-
-    [ObservableProperty]
-    private bool _isProcess;
-
-    [ObservableProperty]
-    private bool _useNeuro;
-
-    [ObservableProperty]
-    private double _progress;
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(RemoveFilesCommand))]
-    private DuplicateGroup? _selectedFileGroup;
-
-    [ObservableProperty]
-    private bool _useExactMatch = true;
-
-    private Bitmap? _selectedImage;
-    public Bitmap? SelectedImage
-    {
-      get => _selectedImage;
-      set
-      {
-        _selectedImage?.Dispose();
-        SetProperty(ref _selectedImage, value);
-      }
-    }
-
-    [ObservableProperty]
-    private float _similarityThreshold = 0.85f;
-
-    [ObservableProperty]
-    private bool _isDarkTheme;
-
-    [ObservableProperty]
-    private ImageInfo? _currentImageInfo;
-
-    public int TotalFiles => DuplicateGroups.Sum(x => x.FileCount);
-    public int TotalGroup => DuplicateGroups.Count;
-    public string? SelectedFolderPath => SelectedFolder?.GetSafeLocalPath(_logger);
-    public static string AppVersion { get; } = $"v{GetAppVersion()}";
-
-
-    private bool CanExecuteScanFolder => SelectedFolderPath is not null;
-
-    [RelayCommand]
-    private async Task PreviousImage()
-    {
-      await NavigateImageAsync(-1);
-    }
-
-    [RelayCommand]
-    private async Task NextImage()
-    {
-      await NavigateImageAsync(1);
-    }
-
-    [RelayCommand(CanExecute = nameof(CanExecuteScanFolder))]
-    private async Task ScanFolder()
-    {
-      if (SelectedFolderPath is null || !Directory.Exists(SelectedFolderPath))
-        return;
-
-      var strategy = CreateStrategy();
-      _duplicateFinder.SetStrategy(strategy);
-
-      IsProcess = true;
-      DuplicateGroups.Clear();
-      FilePreviews.Clear();
-      Progress = 0;
-
-      try
-      {
-        var progress = new Progress<double>(p =>
-        {
-          Progress = p;
-        });
-
-        _findDuplicatesCancellationTokenSource = new CancellationTokenSource();
-        var duplicateGroups = await Task.Run(() =>
-          _duplicateFinder.FindDuplicates(
-            SelectedFolderPath, 
-            progress, 
-            _findDuplicatesCancellationTokenSource.Token));
-
-        var groupsForUi = duplicateGroups.Select(group => new DuplicateGroup(
-            GroupName: group[0].Name,
-            FileCount: group.Count,
-            TotalSize: group.Sum(x => x.Length).ToFileSizeString(),
-            Files: group
-        )).ToList();
-
-        DuplicateGroups.ReplaceWith(groupsForUi);
-
-        SelectedFileGroup = DuplicateGroups.Count > 0 ? DuplicateGroups[0] : null;
-      }
-      finally
-      {
-        IsProcess = false;
-        _findDuplicatesCancellationTokenSource?.Dispose();
-
-        if (strategy is ICachedDuplicateMatchStrategy cachedStrategy)
-        {
-          cachedStrategy.ClearCache();
-        }
-      }
-    }
-
-    [RelayCommand]
-    private void StopScanFolder()
-    {
-      _findDuplicatesCancellationTokenSource?.Cancel();
-    }
-
-    private bool CanExecuteRemoveFiles => FilePreviews.Any(x => x.MarkedForDeletion);
-
-    [RelayCommand(CanExecute = nameof(CanExecuteRemoveFiles))]
-    private void RemoveFiles()
-    {
-      var itemsToRemove = FilePreviews.Where(x => x.MarkedForDeletion).ToList();
-      foreach (var item in itemsToRemove)
-      {
-        FilePreviews.Remove(item);
-      }
-    }
-
-    [RelayCommand]
-    private async Task OpenFullScreen(ImagePreviewViewModel? imageVm)
-    {
-      if (imageVm != null)
-      {
-        var (Width, Height) = await ImageHelper.GetImageDimensionsAsync(imageVm.FilePath);
-        var image = await ImageHelper.LoadImageAsync(imageVm.FilePath, (int)Width);
-        SelectedImage = image.Bitmap;
-
-        var baseInfo = ImageInfo.CreateBasic(
-            imageVm.FilePath,
-            new FileInfo(imageVm.FilePath).Length,
-            Width,
-            Height
-        );
-
-        CurrentImageInfo = await LoadExifDataAsync(baseInfo, imageVm.FilePath);
-      }
-    }
-
-    [RelayCommand]
-    private void CloseFullScreen(ImagePreviewViewModel? imageVm)
-    {
-      CloseFullScreen();
-    }
-
-    private void CloseFullScreen()
-    {
-      CurrentImageInfo = null;
-      SelectedImage = null;
-    }
-
-    [RelayCommand]
-    private void ToggleTheme()
-    {
-      var app = Application.Current;
-      if (app is null) return;
-      var theme = app.ActualThemeVariant;
-      app.RequestedThemeVariant = theme == ThemeVariant.Dark ? ThemeVariant.Light : ThemeVariant.Dark;
-      app.UnregisterFollowSystemTheme();
-
-      theme = app.ActualThemeVariant;
-      IsDarkTheme = theme == ThemeVariant.Dark;
-    }
-
-    [RelayCommand]
-    private async Task OpenContainingFolder(string filePath)
-    {
-      _logger.LogDebug("Открытие папки с файлом: {FilePath}", filePath);
-
-      await FileExplorerHelper.OpenFolderWithFileAsync(
-        filePath,
-        async error =>
-        {
-          _logger.LogWarning("Ошибка открытия папки: {ErrorMessage}", error);
-          await Task.CompletedTask;
-        });
-    }
-
-    private static async Task<ImageInfo> LoadExifDataAsync(ImageInfo baseInfo, string filePath)
-    {
-      try
-      {
-        using var image = await SixLabors.ImageSharp.Image.LoadAsync(filePath);
-        if (image.Metadata.ExifProfile == null)
-          return baseInfo;
-
-        var exif = image.Metadata.ExifProfile;
-
-        var make = exif.Values.FirstOrDefault(x => x.Tag == ExifTag.Make)?.GetValue()?.ToString();
-        var model = exif.Values.FirstOrDefault(x => x.Tag == ExifTag.Model)?.GetValue()?.ToString();
-        var dateTaken = exif.Values.FirstOrDefault(x => x.Tag == ExifTag.DateTime)?.GetValue()?.ToString();
-
-        return baseInfo with
-        {
-          CameraModel = $"{make} {model}".Trim(),
-          DateTaken = dateTaken ?? string.Empty,
-          Exposure = ImageInfo.GetExposureString(exif)
-        };
-      }
-      catch
-      {
-        return baseInfo;
-      }
-    }
-
-    private async Task NavigateImageAsync(int direction)
-    {
-      if (SelectedFileGroup == null || FilePreviews.Count == 0 || CurrentImageInfo == null)
-        return;
-
-      var currentIndex = FilePreviews
-          .Select((preview, index) => new { preview, index })
-          .FirstOrDefault(x => x.preview.FilePath == CurrentImageInfo.FilePath)?.index ?? -1;
-
-      if (currentIndex == -1)
-      {
-        await OpenFullScreen(FilePreviews[0]);
-        return;
-      }
-
-      var newIndex = (currentIndex + direction + FilePreviews.Count) % FilePreviews.Count;
-      await OpenFullScreen(FilePreviews[newIndex]);
-    }
-
-    private IDuplicateMatchStrategy CreateStrategy()
-    {
-      if (UseNeuro)
-        return _strategyFactory.CreateNeuralSimilarityStrategy(SimilarityThreshold);
-
-      if (UseExactMatch)
-        return _strategyFactory.CreateExactMatchStrategy();
-
-      return _strategyFactory.CreateSimilarImageStrategy();
-    }
-
-    async partial void OnSelectedFileGroupChanged(DuplicateGroup? oldValue, DuplicateGroup? newValue)
-    {
-      if (newValue == null)
-        return;
-
-      var previews = newValue.Files.Select(file => new ImagePreviewViewModel
-      (
-        file.Name,
-        file.FullName,
-        file.Length.ToFileSizeString(),
-        _loggerFactory.CreateLogger<ImagePreviewViewModel>()
-      )).ToList();
-
-      FilePreviews.ReplaceWith(previews);
-
-      await _debouncer.DebounceAsync(async () =>
-      {
-        var options = new ParallelOptions { MaxDegreeOfParallelism = 4 };
-        await Parallel.ForEachAsync(FilePreviews.ToList(), options, async (preview, ct) =>
-        {
-          await preview.LoadImageAsync(PreviewImageMaxWidth);
-        });
-      });
-    }
-
-    private void FilePreviews_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
-    {
-      switch (e.Action)
-      {
-        case NotifyCollectionChangedAction.Add:
-        case NotifyCollectionChangedAction.Replace:
-        case NotifyCollectionChangedAction.Move:
-          if (e.NewItems != null)
-          {
-            foreach (ImagePreviewViewModel item in e.NewItems)
-            {
-              item.PropertyChanged += ImagePreview_PropertyChanged;
-            }
-          }
-          break;
-
-        case NotifyCollectionChangedAction.Remove:
-          if (e.OldItems != null)
-          {
-            foreach (ImagePreviewViewModel item in e.OldItems)
-            {
-              item.PropertyChanged -= ImagePreview_PropertyChanged;
-            }
-          }
-          break;
-
-        case NotifyCollectionChangedAction.Reset:
-          // Коллекция полностью изменилась — нужно обработать ВСЕ элементы
-          if (FilePreviews.Count > 0)
-          {
-            // Отписываем старые (на всякий случай)
-            foreach (var item in FilePreviews)
-            {
-              item.PropertyChanged -= ImagePreview_PropertyChanged;
-            }
-            // Подписываем снова
-            foreach (var item in FilePreviews)
-            {
-              item.PropertyChanged += ImagePreview_PropertyChanged;
-            }
-          }
-
-          CloseFullScreen();
-          break;
-      }
-
-
-      RemoveFilesCommand.NotifyCanExecuteChanged();
-    }
-
-    private void ImagePreview_PropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-      if (e.PropertyName == nameof(ImagePreviewViewModel.MarkedForDeletion))
-      {
-        RemoveFilesCommand.NotifyCanExecuteChanged();
-      }
-    }
-
-    private void DuplicateGroups_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
-    {
-      OnPropertyChanged(nameof(TotalFiles));
-      OnPropertyChanged(nameof(TotalGroup));
-    }
-
-    private static string GetAppVersion()
-    {
-      try
-      {
-        var assembly = Assembly.GetExecutingAssembly();
-        var version = assembly.GetName().Version;
-        return version != null ? $"{version.Major}.{version.Minor}.{version.Build}" : "0.1.0";
-      }
-      catch
-      {
-        return "0.1.0";
-      }
-    }
-
-    public void Dispose()
-    {
-      Dispose(true);
-      GC.SuppressFinalize(this);
-    }
-
-    protected virtual void Dispose(bool disposing)
-    {
-      if (!_disposed)
-      {
-        if (disposing)
-        {
-          // Освобождаем управляемые ресурсы
-          DuplicateGroups.CollectionChanged -= DuplicateGroups_CollectionChanged;
-          FilePreviews.CollectionChanged -= FilePreviews_CollectionChanged;
-
-          // Отписываемся от всех элементов
-          foreach (var preview in FilePreviews)
-          {
-            preview.PropertyChanged -= ImagePreview_PropertyChanged;
-          }
-
-          _findDuplicatesCancellationTokenSource?.Dispose();
-          SelectedImage?.Dispose();
-        }
-
-        _disposed = true;
-      }
-    }
-
-    ~MainWindowViewModel()
-    {
-      Dispose(false);
-    }
-
-    public MainWindowViewModel(
-      ILogger<MainWindowViewModel> logger,
-      IDuplicateMatchStrategyFactory strategyFactory,
-      DuplicateFinder duplicateFinder,
-      ILoggerFactory loggerFactory)
-    {
-      _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-      _strategyFactory = strategyFactory ?? throw new ArgumentNullException(nameof(strategyFactory));
-      _duplicateFinder = duplicateFinder ?? throw new ArgumentNullException(nameof(duplicateFinder));
-      _loggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));
-
-      DuplicateGroups.CollectionChanged += DuplicateGroups_CollectionChanged;
-      FilePreviews.CollectionChanged+= FilePreviews_CollectionChanged;
-    }
-
-    /// <summary>
-    /// Конструктор для работы визуального редактора
-    /// </summary>
-#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
-    public MainWindowViewModel()
-#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
-    {
-    }
-  }
-}
+﻿using Avalonia;using Avalonia.Media.Imaging;using Avalonia.Platform.Storage;using Avalonia.Styling;using CommunityToolkit.Mvvm.ComponentModel;using CommunityToolkit.Mvvm.Input;using Dedupligator.App.Collections;using Dedupligator.App.Helpers;using Dedupligator.App.Models;using Dedupligator.Common.Helpers;using Dedupligator.Common.Models;using Dedupligator.Services;using Dedupligator.Services.Cache;using Dedupligator.Services.DuplicateFinders;using Dedupligator.Services.Factories;using Microsoft.Extensions.Logging;using Semi.Avalonia;using SixLabors.ImageSharp.Metadata.Profiles.Exif;using System;using System.Collections.Specialized;using System.ComponentModel;using System.IO;using System.Linq;using System.Reflection;using System.Threading;using System.Threading.Tasks;namespace Dedupligator.App.ViewModels{  public partial class MainWindowViewModel : ViewModelBase, IDisposable  {    private const int PreviewImageMaxWidth = 250;    private bool _disposed = false;    private readonly AsyncDebouncer _debouncer = new(500);    private readonly IDuplicateMatchStrategyFactory _strategyFactory;    private readonly ILogger<MainWindowViewModel> _logger;    private readonly ILoggerFactory _loggerFactory;    private readonly DuplicateFinder _duplicateFinder;    private CancellationTokenSource? _findDuplicatesCancellationTokenSource;    [ObservableProperty]    [NotifyCanExecuteChangedFor(nameof(ScanFolderCommand))]    [NotifyPropertyChangedFor(nameof(SelectedFolderPath))]    private IStorageFolder? _selectedFolder;    [ObservableProperty]    private ObservableRangeCollection<DuplicateGroup> _duplicateGroups = [];    [ObservableProperty]    private ObservableRangeCollection<ImagePreviewViewModel> _filePreviews = [];    [ObservableProperty]    [NotifyCanExecuteChangedFor(nameof(ScanFolderCommand))]    [NotifyCanExecuteChangedFor(nameof(StopScanFolderCommand))]    private bool _isProcess;    [ObservableProperty]    private bool _useNeuro;    [ObservableProperty]    private double _progress;    [ObservableProperty]    [NotifyCanExecuteChangedFor(nameof(RemoveFilesCommand))]    private DuplicateGroup? _selectedFileGroup;    [ObservableProperty]    private bool _useExactMatch = true;    private Bitmap? _selectedImage;    public Bitmap? SelectedImage    {      get => _selectedImage;      set      {        _selectedImage?.Dispose();        SetProperty(ref _selectedImage, value);      }    }    [ObservableProperty]    private float _similarityThreshold = 0.85f;    [ObservableProperty]    private bool _isDarkTheme;    [ObservableProperty]    private ImageInfo? _currentImageInfo;    public int TotalFiles => DuplicateGroups.Sum(x => x.FileCount);    public int TotalGroup => DuplicateGroups.Count;    public string? SelectedFolderPath => SelectedFolder?.GetSafeLocalPath(_logger);    public static string AppVersion { get; } = $"v{GetAppVersion()}";    [RelayCommand]    private async Task PreviousImage()    {      await NavigateImageAsync(-1);    }    [RelayCommand]    private async Task NextImage()    {      await NavigateImageAsync(1);    }    private bool CanExecuteScanFolder => SelectedFolderPath is not null && !IsProcess;    [RelayCommand(CanExecute = nameof(CanExecuteScanFolder))]    private async Task ScanFolder()    {      if (SelectedFolderPath is null || !Directory.Exists(SelectedFolderPath))        return;      var strategy = CreateStrategy();      IsProcess = true;      DuplicateGroups.Clear();      FilePreviews.Clear();      Progress = 0;      try      {        var progress = new Progress<double>(p =>        {          Progress = p;        });        _findDuplicatesCancellationTokenSource = new CancellationTokenSource();        var duplicateGroups = await Task.Run(() =>          _duplicateFinder.FindDuplicates(            strategy,            SelectedFolderPath,             progress,             _findDuplicatesCancellationTokenSource.Token));        var groupsForUi = duplicateGroups.Select(group => new DuplicateGroup(            GroupName: group[0].Name,            FileCount: group.Count,            TotalSize: group.Sum(x => x.Length).ToFileSizeString(),            Files: group        )).ToList();        DuplicateGroups.ReplaceWith(groupsForUi);        SelectedFileGroup = DuplicateGroups.Count > 0 ? DuplicateGroups[0] : null;      }      finally      {        IsProcess = false;        _findDuplicatesCancellationTokenSource?.Dispose();        if (strategy is ICachedDuplicateMatchStrategy cachedStrategy)        {          cachedStrategy.ClearCache();        }      }    }    private bool CanExecuteStopScanFolder => IsProcess;    [RelayCommand(CanExecute = nameof(CanExecuteStopScanFolder))]    private void StopScanFolder()    {      _findDuplicatesCancellationTokenSource?.Cancel();    }    private bool CanExecuteRemoveFiles => FilePreviews.Any(x => x.MarkedForDeletion);    [RelayCommand(CanExecute = nameof(CanExecuteRemoveFiles))]    private void RemoveFiles()    {      var itemsToRemove = FilePreviews.Where(x => x.MarkedForDeletion).ToList();      foreach (var item in itemsToRemove)      {        item.Dispose();        FilePreviews.Remove(item);      }    }    [RelayCommand]    private async Task OpenFullScreen(ImagePreviewViewModel? imageVm)    {      if (imageVm != null)      {        var (Width, Height) = await ImageHelper.GetImageDimensionsAsync(imageVm.FilePath);        var image = await ImageHelper.LoadImageAsync(imageVm.FilePath, (int)Width);        SelectedImage = image.Bitmap;        var baseInfo = ImageInfo.CreateBasic(            imageVm.FilePath,            new FileInfo(imageVm.FilePath).Length,            Width,            Height        );        CurrentImageInfo = await LoadExifDataAsync(baseInfo, imageVm.FilePath);      }    }    [RelayCommand]    private void CloseFullScreen(ImagePreviewViewModel? imageVm)    {      CloseFullScreen();    }    private void CloseFullScreen()    {      CurrentImageInfo = null;      SelectedImage = null;    }    [RelayCommand]    private void ToggleTheme()    {      var app = Application.Current;      if (app is null) return;      var theme = app.ActualThemeVariant;      app.RequestedThemeVariant = theme == ThemeVariant.Dark ? ThemeVariant.Light : ThemeVariant.Dark;      app.UnregisterFollowSystemTheme();      theme = app.ActualThemeVariant;      IsDarkTheme = theme == ThemeVariant.Dark;    }    [RelayCommand]    private async Task OpenContainingFolder(string filePath)    {      _logger.LogDebug("Открытие папки с файлом: {FilePath}", filePath);      await FileExplorerHelper.OpenFolderWithFileAsync(        filePath,        async error =>        {          _logger.LogWarning("Ошибка открытия папки: {ErrorMessage}", error);          await Task.CompletedTask;        });    }    private static async Task<ImageInfo> LoadExifDataAsync(ImageInfo baseInfo, string filePath)    {      try      {        using var image = await SixLabors.ImageSharp.Image.LoadAsync(filePath);        if (image.Metadata.ExifProfile == null)          return baseInfo;        var exif = image.Metadata.ExifProfile;        var make = exif.Values.FirstOrDefault(x => x.Tag == ExifTag.Make)?.GetValue()?.ToString();        var model = exif.Values.FirstOrDefault(x => x.Tag == ExifTag.Model)?.GetValue()?.ToString();        var dateTaken = exif.Values.FirstOrDefault(x => x.Tag == ExifTag.DateTime)?.GetValue()?.ToString();        return baseInfo with        {          CameraModel = $"{make} {model}".Trim(),          DateTaken = dateTaken ?? string.Empty,          Exposure = ImageInfo.GetExposureString(exif)        };      }      catch      {        return baseInfo;      }    }    private async Task NavigateImageAsync(int direction)    {      if (SelectedFileGroup == null || FilePreviews.Count == 0 || CurrentImageInfo == null)        return;      var currentIndex = FilePreviews          .Select((preview, index) => new { preview, index })          .FirstOrDefault(x => x.preview.FilePath == CurrentImageInfo.FilePath)?.index ?? -1;      if (currentIndex == -1)      {        await OpenFullScreen(FilePreviews[0]);        return;      }      var newIndex = (currentIndex + direction + FilePreviews.Count) % FilePreviews.Count;      await OpenFullScreen(FilePreviews[newIndex]);    }    private IDuplicateMatchStrategy CreateStrategy()    {      if (UseNeuro)        return _strategyFactory.CreateNeuralSimilarityStrategy(SimilarityThreshold);      if (UseExactMatch)        return _strategyFactory.CreateExactMatchStrategy();      return _strategyFactory.CreateSimilarImageStrategy();    }    async partial void OnSelectedFileGroupChanged(DuplicateGroup? oldValue, DuplicateGroup? newValue)    {      if (newValue == null)        return;      var previews = newValue.Files.Select(file => new ImagePreviewViewModel      (        file.Name,        file.FullName,        file.Length.ToFileSizeString(),        _loggerFactory.CreateLogger<ImagePreviewViewModel>()      )).ToList();      FilePreviews.ReplaceWith(previews);      await _debouncer.DebounceAsync(async () =>      {        var options = new ParallelOptions { MaxDegreeOfParallelism = 4 };        await Parallel.ForEachAsync(FilePreviews.ToList(), options, async (preview, ct) =>        {          await preview.LoadImageAsync(PreviewImageMaxWidth);        });      });    }    private void FilePreviews_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)    {      switch (e.Action)      {        case NotifyCollectionChangedAction.Add:        case NotifyCollectionChangedAction.Replace:        case NotifyCollectionChangedAction.Move:          if (e.NewItems != null)          {            foreach (ImagePreviewViewModel item in e.NewItems)            {              item.PropertyChanged += ImagePreview_PropertyChanged;            }          }          break;        case NotifyCollectionChangedAction.Remove:          if (e.OldItems != null)          {            foreach (ImagePreviewViewModel item in e.OldItems)            {              item.PropertyChanged -= ImagePreview_PropertyChanged;            }          }          break;        case NotifyCollectionChangedAction.Reset:          // Коллекция полностью изменилась — нужно обработать ВСЕ элементы          if (FilePreviews.Count > 0)          {            // Отписываем старые (на всякий случай)            foreach (var item in FilePreviews)            {              item.PropertyChanged -= ImagePreview_PropertyChanged;            }            // Подписываем снова            foreach (var item in FilePreviews)            {              item.PropertyChanged += ImagePreview_PropertyChanged;            }          }          CloseFullScreen();          break;      }      RemoveFilesCommand.NotifyCanExecuteChanged();    }    private void ImagePreview_PropertyChanged(object? sender, PropertyChangedEventArgs e)    {      if (e.PropertyName == nameof(ImagePreviewViewModel.MarkedForDeletion))      {        RemoveFilesCommand.NotifyCanExecuteChanged();      }    }    private void DuplicateGroups_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)    {      OnPropertyChanged(nameof(TotalFiles));      OnPropertyChanged(nameof(TotalGroup));    }    private static string GetAppVersion()    {      try      {        var assembly = Assembly.GetExecutingAssembly();        var version = assembly.GetName().Version;        return version != null ? $"{version.Major}.{version.Minor}.{version.Build}" : "0.1.0";      }      catch      {        return "0.1.0";      }    }    public void Dispose()    {      Dispose(true);      GC.SuppressFinalize(this);    }    protected virtual void Dispose(bool disposing)    {      if (!_disposed)      {        if (disposing)        {          // Освобождаем управляемые ресурсы          DuplicateGroups.CollectionChanged -= DuplicateGroups_CollectionChanged;          FilePreviews.CollectionChanged -= FilePreviews_CollectionChanged;          // Отписываемся от всех элементов          foreach (var preview in FilePreviews)          {            preview.PropertyChanged -= ImagePreview_PropertyChanged;            preview.Dispose();          }          _findDuplicatesCancellationTokenSource?.Dispose();          SelectedImage?.Dispose();        }        _disposed = true;      }    }    ~MainWindowViewModel()    {      Dispose(false);    }    public MainWindowViewModel(      ILogger<MainWindowViewModel> logger,      IDuplicateMatchStrategyFactory strategyFactory,      DuplicateFinder duplicateFinder,      ILoggerFactory loggerFactory)    {      _logger = logger ?? throw new ArgumentNullException(nameof(logger));      _strategyFactory = strategyFactory ?? throw new ArgumentNullException(nameof(strategyFactory));      _duplicateFinder = duplicateFinder ?? throw new ArgumentNullException(nameof(duplicateFinder));      _loggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));      DuplicateGroups.CollectionChanged += DuplicateGroups_CollectionChanged;      FilePreviews.CollectionChanged+= FilePreviews_CollectionChanged;    }    /// <summary>    /// Конструктор для работы визуального редактора    /// </summary>#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.    public MainWindowViewModel()#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.    {    }  }}

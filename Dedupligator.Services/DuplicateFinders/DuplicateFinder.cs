@@ -17,29 +17,18 @@ namespace Dedupligator.Services.DuplicateFinders
     private readonly ILogger<DuplicateFinder> _logger;
 
     /// <summary>
-    /// Стратегия поиска дубликатов файлов.
-    /// </summary>
-    private IDuplicateMatchStrategy? _strategy;
-
-    public void SetStrategy(IDuplicateMatchStrategy strategy)
-    {
-      _strategy = strategy ?? throw new ArgumentNullException(nameof(strategy));
-      _logger.LogDebug("Strategy set to: {StrategyType}", strategy.GetType().Name);
-    }
-
-    /// <summary>
     /// Находит дубликаты файлов в указанной директории и её поддиректориях.
     /// </summary>
     /// <param name="directoryPath">Путь к директории для поиска.</param>
     /// <param name="progressCallback">Колбэк для прогресса.</param>
     /// <returns>Список групп дубликатов.</returns>
-    public List<List<FileInfo>> FindDuplicates(string directoryPath, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
+    public List<List<FileInfo>> FindDuplicates(
+      IDuplicateMatchStrategy strategy,
+      string directoryPath,
+      IProgress<double>? progress = null,
+      CancellationToken cancellationToken = default)
     {
-      if (_strategy == null)
-      {
-        throw new InvalidOperationException("Strategy not set. Call SetStrategy first.");
-      }
-
+      ArgumentNullException.ThrowIfNull(strategy);
       _logger.LogInformation("Начало поиска дубликатов в директории: {DirectoryPath}", directoryPath);
 
       const double SCAN_PHASE_WEIGHT = 0.01;    // 0% → 1%
@@ -77,6 +66,7 @@ namespace Dedupligator.Services.DuplicateFinders
       // 2. Группировка (с вычислением ключей)
       _logger.LogDebug("Фаза 2: Группировка файлов");
       var groupedFiles = GetGroupedFiles(
+          strategy,
           allFiles,
           progress,
           SCAN_PHASE_WEIGHT,
@@ -97,12 +87,13 @@ namespace Dedupligator.Services.DuplicateFinders
       // 3. Поиск дубликатов в группах
       _logger.LogDebug("Фаза 3: Поиск дубликатов в группах");
       var duplicateGroups = FindDuplicatesInGroupsWithThrottling(
-          groupedFiles,
-          progress,
-          SCAN_PHASE_WEIGHT + GROUP_PHASE_WEIGHT, // начало фазы
-          COMPARE_PHASE_WEIGHT,
-          _maxParallelism,
-          cancellationToken);
+        strategy,
+        groupedFiles,
+        progress,
+        SCAN_PHASE_WEIGHT + GROUP_PHASE_WEIGHT, // начало фазы
+        COMPARE_PHASE_WEIGHT,
+        _maxParallelism,
+        cancellationToken);
 
       _logger.LogInformation("Найдено групп дубликатов: {DuplicateGroupCount}", duplicateGroups.Count);
       _logger.LogInformation("Общее количество дубликатов: {TotalDuplicates}",
@@ -112,12 +103,13 @@ namespace Dedupligator.Services.DuplicateFinders
     }
 
     private List<List<FileInfo>> FindDuplicatesInGroupsWithThrottling(
-        IEnumerable<IGrouping<object, FileInfo>> groupedFiles,
-        IProgress<double>? progress,
-        double startPhase,
-        double phaseWeight,
-        int maxParallelism = 4,
-        CancellationToken cancellationToken = default)
+      IDuplicateMatchStrategy strategy,
+      IEnumerable<IGrouping<object, FileInfo>> groupedFiles,
+      IProgress<double>? progress,
+      double startPhase,
+      double phaseWeight,
+      int maxParallelism = 4,
+      CancellationToken cancellationToken = default)
     {
       var duplicateGroups = new ConcurrentBag<List<FileInfo>>();
       var totalFiles = groupedFiles.Sum(x => x.Count());
@@ -148,6 +140,7 @@ namespace Dedupligator.Services.DuplicateFinders
             _logger.LogTrace("Обработка группы из {GroupSize} файлов", groupFiles.Count);
 
             var groupDuplicates = FindDuplicateGroupsInFileGroup(
+              strategy,
               groupFiles,
               cancellationToken,
               () =>
@@ -182,7 +175,11 @@ namespace Dedupligator.Services.DuplicateFinders
       return [.. duplicateGroups];
     }
 
-    private List<List<FileInfo>> FindDuplicateGroupsInFileGroup(List<FileInfo> files, CancellationToken cancellationToken, Action? progressCallback = null)
+    private List<List<FileInfo>> FindDuplicateGroupsInFileGroup(
+      IDuplicateMatchStrategy strategy,
+      List<FileInfo> files,
+      CancellationToken cancellationToken,
+      Action? progressCallback = null)
     {
       var duplicateGroups = new List<List<FileInfo>>();
       var processedFiles = new HashSet<string>();
@@ -207,7 +204,7 @@ namespace Dedupligator.Services.DuplicateFinders
           if (processedFiles.Contains(otherFile.FullName))
             continue;
 
-          if (FilesAreDuplicates(currentFile, otherFile))
+          if (FilesAreDuplicates(strategy, currentFile, otherFile))
           {
             currentGroup.Add(otherFile);
             processedFiles.Add(otherFile.FullName);
@@ -232,11 +229,11 @@ namespace Dedupligator.Services.DuplicateFinders
     /// <param name="file1">Первый файл.</param>
     /// <param name="file2">Второй файл.</param>
     /// <returns>True если файлы дубликаты.</returns>
-    private bool FilesAreDuplicates(FileInfo file1, FileInfo file2)
+    private bool FilesAreDuplicates(IDuplicateMatchStrategy strategy, FileInfo file1, FileInfo file2)
     {
       try
       {
-        var areDuplicates = _strategy!.AreDuplicates(file1, file2);
+        var areDuplicates = strategy.AreDuplicates(file1, file2);
         if (areDuplicates)
         {
           _logger.LogTrace("Файлы являются дубликатами: {File1} == {File2}", file1.Name, file2.Name);
@@ -255,7 +252,9 @@ namespace Dedupligator.Services.DuplicateFinders
     /// </summary>
     /// <param name="allFiles">Все файлы для обработки.</param>
     /// <returns>Сгруппированные файлы.</returns>
-    private List<IGrouping<object, FileInfo>> GetGroupedFiles(List<FileInfo> allFiles,
+    private List<IGrouping<object, FileInfo>> GetGroupedFiles(
+      IDuplicateMatchStrategy strategy,
+      List<FileInfo> allFiles,
       IProgress<double>? progress,
       double startProgress,
       double phaseWeight,
@@ -267,7 +266,7 @@ namespace Dedupligator.Services.DuplicateFinders
 
       _logger.LogDebug("Группировка {FileCount} файлов", allFiles.Count);
 
-      if (!_strategy!.RequiresPreGrouping)
+      if (!strategy.RequiresPreGrouping)
       {
         progress?.Report((startProgress + phaseWeight) * 100);
         _logger.LogDebug("Стратегия не требует предварительной группировки");
@@ -290,7 +289,7 @@ namespace Dedupligator.Services.DuplicateFinders
           {
             try
             {
-              var key = _strategy.GroupingKeySelector(file);
+              var key = strategy.GroupingKeySelector(file);
               fileKeys[file] = key;
               _logger.LogTrace("Вычислен ключ для файла {FileName}: {Key}", file.Name, key);
             }

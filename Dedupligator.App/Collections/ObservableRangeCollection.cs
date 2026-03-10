@@ -46,6 +46,14 @@ namespace Dedupligator.App.Collections
       if (Items.Count == 0 && list.Count == 0)
         return;
 
+      foreach (var p in Items)
+      {
+        if (p is IDisposable disposable)
+        {
+          disposable.Dispose();
+        }
+      }
+
       Items.Clear();
 
       if (list.Count == 0)
