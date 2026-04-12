@@ -1,4 +1,5 @@
-﻿using Dedupligator.Common.Helpers;
+using Dedupligator.Common.Constants;
+using Dedupligator.Common.Helpers;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 
@@ -326,10 +327,10 @@ namespace Dedupligator.Services.DuplicateFinders
     /// <param name="directoryPath">Путь к директории.</param>
     /// <returns>Список файлов изображений.</returns>
     private List<FileInfo> GetImageFiles(
-      string directoryPath, 
-      IProgress<double>? progress, 
-      double phaseWeight, 
-      int maxParallelism = 4, 
+      string directoryPath,
+      IProgress<double>? progress,
+      double phaseWeight,
+      int maxParallelism = 4,
       CancellationToken cancellationToken = default)
     {
       _logger.LogDebug("Сканирование изображений в директории: {DirectoryPath}", directoryPath);
@@ -441,12 +442,22 @@ namespace Dedupligator.Services.DuplicateFinders
     private static bool ShouldSkipDirectory(string path)
     {
       string[] skipPatterns = ["/proc", "/sys", "/dev", "/run"];
-      return skipPatterns.Any(path.StartsWith);
+      return skipPatterns.Any(path.StartsWith) ||
+             string.Equals(Path.GetFileName(Path.TrimEndingDirectorySeparator(path)),
+               AppFolders.TrashFolderName,
+               StringComparison.OrdinalIgnoreCase);
     }
 
     private List<FileInfo> AddImageFilesFromDirectory(string directoryPath, CancellationToken cancellationToken)
     {
       cancellationToken.ThrowIfCancellationRequested();
+
+      if (string.Equals(Path.GetFileName(Path.TrimEndingDirectorySeparator(directoryPath)),
+          AppFolders.TrashFolderName,
+          StringComparison.OrdinalIgnoreCase))
+      {
+        return [];
+      }
 
       var enumerationOptions = new EnumerationOptions
       {

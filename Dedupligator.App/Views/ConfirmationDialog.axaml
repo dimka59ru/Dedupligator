@@ -1,0 +1,35 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Dedupligator.App.Views.ConfirmationDialog"
+        Width="520"
+        SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Title="Подтверждение">
+
+  <Border Padding="20">
+    <Grid RowDefinitions="Auto,24,Auto">
+      <StackPanel Spacing="8">
+        <TextBlock x:Name="TitleTextBlock"
+                   FontSize="18"
+                   FontWeight="SemiBold"/>
+        <TextBlock x:Name="MessageTextBlock"
+                   TextWrapping="Wrap"/>
+      </StackPanel>
+
+      <StackPanel Grid.Row="2"
+                  Orientation="Horizontal"
+                  HorizontalAlignment="Right"
+                  Spacing="8">
+        <Button x:Name="CancelButton"
+                MinWidth="100"
+                Classes="Tertiary"
+                Click="CancelButton_Click"/>
+        <Button x:Name="ConfirmButton"
+                MinWidth="120"
+                Classes="Danger"
+                Click="ConfirmButton_Click"/>
+      </StackPanel>
+    </Grid>
+  </Border>
+</Window>

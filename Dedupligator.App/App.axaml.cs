@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Dedupligator.App.Services;
 using Dedupligator.App.ViewModels;
 using Dedupligator.Services.DuplicateFinders;
 using Dedupligator.Services.Factories;
@@ -32,7 +33,7 @@ namespace Dedupligator.App
 
       _serviceProvider = collection.BuildServiceProvider();
 
-      // Создаем область видимости для главного окна
+      // РЎРѕР·РґР°РµРј РѕР±Р»Р°СЃС‚СЊ РІРёРґРёРјРѕСЃС‚Рё РґР»СЏ РіР»Р°РІРЅРѕРіРѕ РѕРєРЅР°
       _scope = _serviceProvider.CreateScope();
       var vm = _scope.ServiceProvider.GetRequiredService<MainWindowViewModel>();
 
@@ -118,6 +119,7 @@ namespace Dedupligator.App
         builder.SetMinimumLevel(LogLevel.Debug);
       });
       services.AddTransient<DuplicateFinder>();
+      services.AddSingleton<IConfirmationDialogService, ConfirmationDialogService>();
       services.AddSingleton<DuplicateMatchStrategyFactory>();
       services.AddSingleton<IDuplicateMatchStrategyFactory>(sp => sp.GetRequiredService<DuplicateMatchStrategyFactory>());
       services.AddScoped<MainWindowViewModel>();

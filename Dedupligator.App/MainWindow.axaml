@@ -232,11 +232,35 @@
                 </ItemsControl>
               </ScrollViewer>
 
-              <controls:SimpleIconButton Grid.Row="1" Margin="0 0 8 8"
-                                         HorizontalAlignment="Right" Text="Удалить отмеченные"
-                                         Icon="{iconPacks:Lucide Trash2, Width=18, Height=18}"
-                                         Command="{Binding RemoveFilesCommand}"
-                                         Classes="DangerButtonStyle"/>
+              <Grid Grid.Row="1" Margin="12 0 8 8"
+                    ColumnDefinitions="*,Auto,Auto"
+                    ColumnSpacing="8">
+                <StackPanel Spacing="2"
+                            VerticalAlignment="Center">
+                  <TextBlock Text="Отмеченные файлы будут перенесены в .dedupligator-trash"
+                             FontSize="12"
+                             Foreground="{DynamicResource TextSecondaryColor}"
+                             FontWeight="Medium"/>
+                  <TextBlock Text="{Binding TrashFolderPath}"
+                             FontSize="11"
+                             Foreground="{DynamicResource TextSecondaryColor}"
+                             TextWrapping="Wrap"/>
+                </StackPanel>
+
+                <controls:SimpleIconButton Grid.Column="1"
+                                           HorizontalAlignment="Right"
+                                           Text="Открыть папку удалённых"
+                                           Icon="{iconPacks:Lucide FolderOutput, Width=18, Height=18}"
+                                           Command="{Binding OpenTrashFolderCommand}"
+                                           Classes="ModernButtonStyle"/>
+
+                <controls:SimpleIconButton Grid.Column="2"
+                                           HorizontalAlignment="Right"
+                                           Text="Переместить отмеченные"
+                                           Icon="{iconPacks:Lucide Trash2, Width=18, Height=18}"
+                                           Command="{Binding RemoveFilesCommand}"
+                                           Classes="DangerButtonStyle"/>
+              </Grid>
             </Grid>
           </Grid>
         </Border>
